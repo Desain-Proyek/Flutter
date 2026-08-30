@@ -1,30 +1,25 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:despro/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('PortaStat App renders successfully and displays main navigation tabs', (WidgetTester tester) async {
+    await tester.pumpWidget(const PortaStatApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify app title is displayed
+    expect(find.text('PortaStat'), findsOneWidget);
+    expect(find.text('Deteksi Kualitas Air Bencana'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify bottom navigation bar destinations
+    expect(find.text('Beranda'), findsOneWidget);
+    expect(find.text('Uji & Grafik'), findsOneWidget);
+    expect(find.text('Catatan Air'), findsOneWidget);
+    expect(find.text('Perakitan'), findsOneWidget);
+    expect(find.text('Pengaturan'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Navigate to 'Uji & Grafik' tab
+    await tester.tap(find.text('Uji & Grafik'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Uji Elektrokimia PortaStat'), findsOneWidget);
   });
 }
