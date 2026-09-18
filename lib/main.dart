@@ -4,9 +4,19 @@ import 'screens/live_measurement_screen.dart';
 import 'screens/field_log_screen.dart';
 import 'screens/hardware_diy_guide_screen.dart';
 import 'screens/settings_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'firebase_write_test.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await testFirestoreWrite();
+
   runApp(const PortaStatApp());
 }
 
