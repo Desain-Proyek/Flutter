@@ -6,6 +6,7 @@ import '../models/device_status.dart';
 import '../services/potentiostat_service.dart';
 import '../services/water_analyzer_service.dart';
 import '../services/storage_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/live_voltammogram_chart.dart';
 import '../widgets/connection_badge.dart';
 import '../widgets/field_parameter_card.dart';
@@ -29,6 +30,7 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
   final PotentiostatService _potentiostatService = PotentiostatService();
   final WaterAnalyzerService _analyzerService = WaterAnalyzerService();
   final StorageService _storageService = StorageService();
+  final AuthService _authService = AuthService();
 
   late ScanParameters _parameters;
   final TextEditingController _locationController = TextEditingController(text: 'Posko Pengungsian 01');
@@ -131,6 +133,9 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
       params: _parameters,
       points: List.of(_livePoints),
       simulatedOverrideConc: _simulatedContaminantLevel,
+      operatorName: _authService.operatorDisplayName,
+      operatorId: _authService.operatorId,
+      operatorEmail: _authService.operatorEmail,
     );
 
     _storageService.saveSample(sample);

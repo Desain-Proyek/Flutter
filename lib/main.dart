@@ -4,9 +4,11 @@ import 'screens/live_measurement_screen.dart';
 import 'screens/field_log_screen.dart';
 import 'screens/hardware_diy_guide_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/login_screen.dart';
+import 'services/auth_service.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
-import 'firebase_write_test.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,8 +16,6 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  await testFirestoreWrite();
 
   runApp(const PortaStatApp());
 }
@@ -38,7 +38,7 @@ class _PortaStatAppState extends State<PortaStatApp> {
       theme: _buildTheme(Brightness.light, _isHighContrast),
       darkTheme: _buildTheme(Brightness.dark, _isHighContrast),
       themeMode: ThemeMode.system,
-      home: MainNavigationContainer(
+      home: AuthGate(
         isHighContrast: _isHighContrast,
         onHighContrastChanged: (val) => setState(() => _isHighContrast = val),
       ),
@@ -76,6 +76,42 @@ class _PortaStatAppState extends State<PortaStatApp> {
         elevation: 0,
       ),
       fontFamily: 'Roboto',
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  final bool isHighContrast;
+  final ValueChanged<bool> onHighContrastChanged;
+
+  const AuthGate({
+    super.key,
+    required this.isHighContrast,
+    required this.onHighContrastChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: AuthService().authStateChanges,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return MainNavigationContainer(
+            isHighContrast: isHighContrast,
+            onHighContrastChanged: onHighContrastChanged,
+          );
+        }
+
+        return const LoginScreen();
+      },
     );
   }
 }

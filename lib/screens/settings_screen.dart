@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/device_status.dart';
 import '../services/potentiostat_service.dart';
+import '../services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool isHighContrast;
@@ -20,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedStandard = 'WHO_2022';
   String _selectedLanguage = 'ID';
   final PotentiostatService _potentiostatService = PotentiostatService();
+  final AuthService _authService = AuthService();
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +35,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
+          // Petugas & Autentikasi Section
+          _sectionTitle('PETUGAS & AUTENTIKASI'),
+          _buildOperatorProfileCard(isDark),
+          const SizedBox(height: 18),
+
           // Standard Baku Mutu Section
           _sectionTitle('STANDAR BAKU MUTU AIR'),
           Card(
@@ -193,6 +200,121 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: Colors.grey,
           letterSpacing: 0.5,
         ),
+      ),
+    );
+  }
+
+  Widget _buildOperatorProfileCard(bool isDark) {
+    final isAnonymous = _authService.isAnonymous;
+    final displayName = _authService.operatorDisplayName;
+    final email = _authService.operatorEmail;
+    final uid = _authService.operatorId ?? 'N/A';
+    final shortUid = uid.length > 8 ? uid.substring(0, 8) : uid;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                  child: Icon(
+                    isAnonymous ? Icons.shield_outlined : Icons.person_rounded,
+                    color: const Color(0xFF0284C7),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isAnonymous
+                                  ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                                  : const Color(0xFF10B981).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isAnonymous ? 'Relawan Tamu' : 'Resmi',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isAnonymous ? const Color(0xFFD97706) : const Color(0xFF10B981),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        email ?? 'ID: $shortUid...',
+                        style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _confirmSignOutDialog(context),
+                icon: const Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                label: const Text(
+                  'Keluar / Ganti Petugas',
+                  style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmSignOutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Keluar dari Akun?'),
+        content: const Text(
+          'Anda akan dialihkan kembali ke layar masuk petugas/relawan lapangan.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _authService.signOut();
+            },
+            child: const Text('Keluar'),
+          ),
+        ],
       ),
     );
   }

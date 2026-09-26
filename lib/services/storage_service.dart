@@ -190,6 +190,35 @@ class StorageService {
   }
 
   // ============================================================
+  // FIRESTORE - STREAM (REAL-TIME)
+  // ============================================================
+
+  /// Real-time stream of all water samples from Firestore, ordered newest first.
+  ///
+  /// Synchronizes the internal [_samples] cache on each emission.
+  Stream<List<WaterSample>> get samplesStream {
+    return _firestore
+        .collection(_collectionName)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      final samples = snapshot.docs.map((doc) {
+        return WaterSample.fromMap(
+          doc.id,
+          doc.data(),
+        );
+      }).toList();
+
+      // Update local cache
+      _samples
+        ..clear()
+        ..addAll(samples);
+
+      return List.unmodifiable(_samples);
+    });
+  }
+
+  // ============================================================
   // FIRESTORE - LOAD ALL
   // ============================================================
 
@@ -264,27 +293,20 @@ class StorageService {
   }
 
   // ============================================================
-  // LOCAL SEARCH
+  // SEARCH & FILTER
   // ============================================================
 
-  /// Search samples from the currently loaded local cache.
-  ///
-  /// Supports:
-  /// - location name
-  /// - sample ID
-  /// - field notes
-  /// - safety status
-  /// - water source
-  List<WaterSample> searchSamples({
+  /// Filter any list of samples by query, safety status, and water source.
+  List<WaterSample> filterSamples(
+    List<WaterSample> sourceList, {
     String? query,
     WaterSafetyStatus? statusFilter,
     WaterSourceType? sourceFilter,
   }) {
-    return _samples.where((sample) {
+    return sourceList.where((sample) {
       // --------------------------------------------------------
       // TEXT SEARCH
       // --------------------------------------------------------
-
       if (query != null && query.isNotEmpty) {
         final q = query.toLowerCase();
 
@@ -307,7 +329,6 @@ class StorageService {
       // --------------------------------------------------------
       // SAFETY STATUS FILTER
       // --------------------------------------------------------
-
       if (statusFilter != null &&
           sample.safetyStatus != statusFilter) {
         return false;
@@ -316,7 +337,6 @@ class StorageService {
       // --------------------------------------------------------
       // SOURCE FILTER
       // --------------------------------------------------------
-
       if (sourceFilter != null &&
           sample.sourceType != sourceFilter) {
         return false;
@@ -326,13 +346,28 @@ class StorageService {
     }).toList();
   }
 
+  /// Search samples from the currently loaded local cache.
+  List<WaterSample> searchSamples({
+    String? query,
+    WaterSafetyStatus? statusFilter,
+    WaterSourceType? sourceFilter,
+  }) {
+    return filterSamples(
+      _samples,
+      query: query,
+      statusFilter: statusFilter,
+      sourceFilter: sourceFilter,
+    );
+  }
+
   // ============================================================
   // CSV EXPORT
   // ============================================================
 
   /// Generate CSV string for tabular field reports.
-  String exportToCSV() {
+  String exportToCSV({List<WaterSample>? customSamples}) {
     final buffer = StringBuffer();
+    final targetSamples = customSamples ?? _samples;
 
     buffer.writeln(
       'Sample_ID,Location,Source_Type,Timestamp,'
@@ -340,7 +375,7 @@ class StorageService {
       'Threshold_mgL,Exceeded',
     );
 
-    for (final sample in _samples) {
+    for (final sample in targetSamples) {
       for (final reading in sample.readings) {
         buffer.writeln(
           '${sample.id},'

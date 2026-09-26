@@ -128,6 +128,23 @@ class AnalysisReportScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.person_pin_rounded, size: 16, color: Color(0xFF0284C7)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Petugas Penguji: ${sample.operatorName}${sample.operatorEmail != null ? " (${sample.operatorEmail})" : ""}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : const Color(0xFF334155),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             if (sample.fieldNotes != null && sample.fieldNotes!.isNotEmpty) ...[
               const Divider(height: 16),
               Text(
