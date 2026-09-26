@@ -222,6 +222,20 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 height: 1.35,
               ),
             ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () => widget.onNavigateTab(3), // Navigate to Map tab (index 3)
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: const Color(0xFF0284C7).withValues(alpha: 0.5)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                minimumSize: const Size.fromHeight(40),
+              ),
+              icon: const Icon(Icons.map_rounded, size: 18, color: Color(0xFF0284C7)),
+              label: const Text(
+                'Lihat Sebaran Titik Air di Peta Wilayah',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0284C7)),
+              ),
+            ),
           ],
         ),
       ),

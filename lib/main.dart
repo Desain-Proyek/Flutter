@@ -5,6 +5,7 @@ import 'screens/field_log_screen.dart';
 import 'screens/hardware_diy_guide_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/disaster_map_screen.dart';
 import 'services/auth_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -141,6 +142,7 @@ class _MainNavigationContainerState extends State<MainNavigationContainer> {
       ),
       const LiveMeasurementScreen(),
       const FieldLogScreen(),
+      const DisasterMapScreen(),
       const HardwareDIYGuideScreen(),
       SettingsScreen(
         isHighContrast: widget.isHighContrast,
@@ -173,6 +175,11 @@ class _MainNavigationContainerState extends State<MainNavigationContainer> {
             icon: Icon(Icons.fact_check_outlined),
             selectedIcon: Icon(Icons.fact_check_rounded, color: Color(0xFF0284C7)),
             label: 'Catatan Air',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded, color: Color(0xFF0284C7)),
+            label: 'Peta Wilayah',
           ),
           NavigationDestination(
             icon: Icon(Icons.build_outlined),
