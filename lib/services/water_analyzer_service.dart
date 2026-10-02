@@ -120,6 +120,9 @@ class WaterAnalyzerService {
     required List<VoltammogramPoint> points,
     String? fieldNotes,
     double simulatedOverrideConc = 0.038,
+    String operatorName = 'Relawan Posko',
+    String? operatorId,
+    String? operatorEmail,
   }) {
     final peaks = detectPeaks(points: points, params: params);
     
@@ -159,6 +162,9 @@ class WaterAnalyzerService {
       rawScanData: points,
       scanParameters: params,
       fieldNotes: fieldNotes,
+      operatorName: operatorName,
+      operatorId: operatorId,
+      operatorEmail: operatorEmail,
     );
   }
 }

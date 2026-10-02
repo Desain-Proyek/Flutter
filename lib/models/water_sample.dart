@@ -103,6 +103,8 @@ class WaterSample {
   final ScanParameters scanParameters;
   final String? fieldNotes;
   final String operatorName;
+  final String? operatorId;
+  final String? operatorEmail;
 
   const WaterSample({
     required this.id,
@@ -118,6 +120,8 @@ class WaterSample {
     required this.scanParameters,
     this.fieldNotes,
     this.operatorName = 'Relawan Posko',
+    this.operatorId,
+    this.operatorEmail,
   });
 
   /// Convert WaterSample into Firestore-compatible data.
@@ -133,6 +137,8 @@ class WaterSample {
       'readings': readings.map((reading) => reading.toMap()).toList(),
       'fieldNotes': fieldNotes,
       'operatorName': operatorName,
+      'operatorId': operatorId,
+      'operatorEmail': operatorEmail,
     };
   }
 
@@ -141,7 +147,7 @@ class WaterSample {
     String id,
     Map<String, dynamic> map,
   ) {
-    final timestampData = map['timestamp'];
+    final timestampData = map['timestamp'] ?? map['createdAt'];
 
     DateTime timestamp;
 
@@ -150,20 +156,46 @@ class WaterSample {
     } else if (timestampData is DateTime) {
       timestamp = timestampData;
     } else if (timestampData is String) {
-      timestamp = DateTime.parse(timestampData);
+      timestamp = DateTime.tryParse(timestampData) ?? DateTime.now();
     } else {
       timestamp = DateTime.now();
     }
 
-    final sourceType = WaterSourceType.values.firstWhere(
-      (value) => value.name == map['sourceType'],
-      orElse: () => WaterSourceType.well,
-    );
+    final rawSource = (map['sourceType'] as String? ?? '').toLowerCase();
+    WaterSourceType sourceType;
+    if (rawSource.contains('sungai') || rawSource == 'river') {
+      sourceType = WaterSourceType.river;
+    } else if (rawSource.contains('sumur') || rawSource == 'well') {
+      sourceType = WaterSourceType.well;
+    } else if (rawSource.contains('tangki') || rawSource == 'relieftank') {
+      sourceType = WaterSourceType.reliefTank;
+    } else if (rawSource.contains('banjir') || rawSource == 'flood') {
+      sourceType = WaterSourceType.flood;
+    } else if (rawSource.contains('mata air') || rawSource == 'spring') {
+      sourceType = WaterSourceType.spring;
+    } else if (rawSource.contains('pdam') || rawSource == 'tap') {
+      sourceType = WaterSourceType.tap;
+    } else {
+      sourceType = WaterSourceType.well;
+    }
 
-    final safetyStatus = WaterSafetyStatus.values.firstWhere(
-      (value) => value.name == map['safetyStatus'],
-      orElse: () => WaterSafetyStatus.moderate,
-    );
+    final rawStatus = (map['safetyStatus'] as String? ?? '').toLowerCase();
+    WaterSafetyStatus safetyStatus;
+    if (rawStatus.contains('aman') || rawStatus == 'safe') {
+      safetyStatus = WaterSafetyStatus.safe;
+    } else if (rawStatus.contains('bahaya') || rawStatus.contains('tercemar') || rawStatus == 'danger') {
+      safetyStatus = WaterSafetyStatus.danger;
+    } else {
+      safetyStatus = WaterSafetyStatus.moderate;
+    }
+
+    double? lat = (map['latitude'] as num?)?.toDouble();
+    double? lng = (map['longitude'] as num?)?.toDouble();
+    if (map['location'] is GeoPoint) {
+      final geo = map['location'] as GeoPoint;
+      lat = geo.latitude;
+      lng = geo.longitude;
+    }
 
     final readingsData = map['readings'] as List<dynamic>? ?? [];
 
@@ -182,8 +214,8 @@ class WaterSample {
     return WaterSample(
       id: id,
       locationName: map['locationName'] as String? ?? '',
-      latitude: (map['latitude'] as num?)?.toDouble(),
-      longitude: (map['longitude'] as num?)?.toDouble(),
+      latitude: lat,
+      longitude: lng,
       sourceType: sourceType,
       timestamp: timestamp,
       safetyStatus: safetyStatus,
@@ -195,6 +227,8 @@ class WaterSample {
       fieldNotes: map['fieldNotes'] as String?,
       operatorName:
           map['operatorName'] as String? ?? 'Relawan Posko',
+      operatorId: map['operatorId'] as String?,
+      operatorEmail: map['operatorEmail'] as String?,
     );
   }
 

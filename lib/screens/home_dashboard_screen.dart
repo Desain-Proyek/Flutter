@@ -26,115 +26,123 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final samples = _storageService.allSamples;
 
-    // Calculate average WQI
-    final double avgWqi = samples.isNotEmpty
-        ? samples.map((s) => s.waterQualityIndex).reduce((a, b) => a + b) / samples.length
-        : 85.0;
-    
-    final WaterSafetyStatus overallStatus = avgWqi > 75 
-        ? WaterSafetyStatus.safe 
-        : (avgWqi > 50 ? WaterSafetyStatus.moderate : WaterSafetyStatus.danger);
+    return StreamBuilder<List<WaterSample>>(
+      stream: _storageService.samplesStream,
+      initialData: _storageService.allSamples,
+      builder: (context, snapshot) {
+        final samples = snapshot.data ?? [];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0284C7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.water_drop_rounded, color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        // Calculate average WQI
+        final double avgWqi = samples.isNotEmpty
+            ? samples.map((s) => s.waterQualityIndex).reduce((a, b) => a + b) / samples.length
+            : 85.0;
+
+        final WaterSafetyStatus overallStatus = avgWqi > 75
+            ? WaterSafetyStatus.safe
+            : (avgWqi > 50 ? WaterSafetyStatus.moderate : WaterSafetyStatus.danger);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Row(
               children: [
-                Text(
-                  'PortaStat',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.water_drop_rounded, color: Colors.white, size: 20),
                 ),
-                Text(
-                  'Deteksi Kualitas Air Bencana',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                const SizedBox(width: 10),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PortaStat',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: -0.5),
+                    ),
+                    Text(
+                      'Deteksi Kualitas Air Bencana',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-        actions: [
-          StreamBuilder<DeviceStatus>(
-            stream: _potentiostatService.deviceStatusStream,
-            initialData: _potentiostatService.deviceStatus,
-            builder: (context, snapshot) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 14.0),
-                child: ConnectionBadge(status: snapshot.data ?? const DeviceStatus()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() {});
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Emergency disaster banner
-              _buildDisasterStatusBanner(isDark),
-              const SizedBox(height: 18),
-
-              // Overall Water Quality Card
-              _buildOverallGaugeCard(avgWqi, overallStatus, samples.length, isDark),
-              const SizedBox(height: 22),
-
-              // Rapid Field Test Shortcuts (1-Tap Test)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Uji Cepat Lapangan (1-Sentuhan)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: () => widget.onNavigateTab(1), // Go to Measurement tab
-                    child: const Text('Mode Ahli (CV/DPV)', style: TextStyle(fontSize: 12)),
-                  ),
-                ],
+            actions: [
+              StreamBuilder<DeviceStatus>(
+                stream: _potentiostatService.deviceStatusStream,
+                initialData: _potentiostatService.deviceStatus,
+                builder: (context, snapshot) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 14.0),
+                    child: ConnectionBadge(status: snapshot.data ?? const DeviceStatus()),
+                  );
+                },
               ),
-              const SizedBox(height: 10),
-              _buildQuickTestGrid(context),
-              const SizedBox(height: 24),
-
-              // Recent Field Test Logs
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Riwayat Uji Sumber Air Terkini',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton(
-                    onPressed: () => widget.onNavigateTab(2), // Go to Field Log tab
-                    child: const Text('Lihat Semua', style: TextStyle(fontSize: 12)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _buildRecentTestsList(samples, isDark),
-              const SizedBox(height: 20),
             ],
           ),
-        ),
-      ),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              await _storageService.loadSamplesFromFirestore();
+              if (mounted) setState(() {});
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Emergency disaster banner
+                  _buildDisasterStatusBanner(isDark),
+                  const SizedBox(height: 18),
+
+                  // Overall Water Quality Card
+                  _buildOverallGaugeCard(avgWqi, overallStatus, samples.length, isDark),
+                  const SizedBox(height: 22),
+
+                  // Rapid Field Test Shortcuts (1-Tap Test)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Uji Cepat Lapangan (1-Sentuhan)',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: () => widget.onNavigateTab(1), // Go to Measurement tab
+                        child: const Text('Mode Ahli (CV/DPV)', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _buildQuickTestGrid(context),
+                  const SizedBox(height: 24),
+
+                  // Recent Field Test Logs
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Riwayat Uji Sumber Air Terkini',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: () => widget.onNavigateTab(2), // Go to Field Log tab
+                        child: const Text('Lihat Semua', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildRecentTestsList(samples, isDark),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -212,6 +220,20 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 fontSize: 12,
                 color: isDark ? Colors.white70 : const Color(0xFF475569),
                 height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () => widget.onNavigateTab(3), // Navigate to Map tab (index 3)
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: const Color(0xFF0284C7).withValues(alpha: 0.5)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                minimumSize: const Size.fromHeight(40),
+              ),
+              icon: const Icon(Icons.map_rounded, size: 18, color: Color(0xFF0284C7)),
+              label: const Text(
+                'Lihat Sebaran Titik Air di Peta Wilayah',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Color(0xFF0284C7)),
               ),
             ),
           ],
