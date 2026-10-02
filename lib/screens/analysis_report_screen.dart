@@ -3,6 +3,9 @@ import '../models/water_sample.dart';
 import '../models/mitigation_guide.dart';
 import '../widgets/water_quality_gauge.dart';
 import '../widgets/mitigation_card.dart';
+import '../services/pdf_export_service.dart';
+import '../services/storage_service.dart';
+import 'pdf_preview_screen.dart';
 
 class AnalysisReportScreen extends StatelessWidget {
   final WaterSample sample;
@@ -26,6 +29,18 @@ class AnalysisReportScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: 'Lihat & Cetak PDF',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PdfPreviewScreen(sample: sample),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code_2_rounded),
             tooltip: 'Bagikan via QR Code Offline',
@@ -324,9 +339,16 @@ class AnalysisReportScreen extends StatelessWidget {
         Expanded(
           flex: 2,
           child: FilledButton.icon(
-            onPressed: () => _showShareOptions(context),
-            icon: const Icon(Icons.file_download_outlined),
-            label: const Text('Ekspor Laporan Resmi'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PdfPreviewScreen(sample: sample),
+                ),
+              );
+            },
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            label: const Text('Ekspor Laporan Resmi (PDF)'),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF0284C7),
               minimumSize: const Size.fromHeight(48),
@@ -403,22 +425,46 @@ class AnalysisReportScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               ListTile(
-                leading: const Icon(Icons.picture_as_pdf_rounded, color: Colors.red),
-                title: const Text('Unduh Ringkasan PDF Lapangan'),
-                subtitle: const Text('Format surat rekomendasi resmi posko penanganan bencana.'),
+                leading: const Icon(Icons.visibility_rounded, color: Color(0xFF0284C7)),
+                title: const Text('Pratinjau & Cetak Laporan PDF'),
+                subtitle: const Text('Buka pratinjau dokumen resmi A4, cetak ke printer atau simpan.'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Laporan PDF berhasil di-generate & disimpan di perangkat!')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PdfPreviewScreen(sample: sample),
+                    ),
                   );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_rounded, color: Colors.red),
+                title: const Text('Bagikan / Simpan File PDF Lapangan'),
+                subtitle: const Text('Kirim berkas PDF langsung via WhatsApp, Email, atau Drive.'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  try {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Menyiapkan file PDF laporan...')),
+                    );
+                    await PdfExportService.shareSampleReportPdf(sample);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Gagal mengekspor PDF: $e')),
+                      );
+                    }
+                  }
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.table_chart_rounded, color: Colors.green),
                 title: const Text('Ekspor Raw Data CSV'),
-                subtitle: const Text('Data titik voltammogram potensial & arus untuk software lab.'),
+                subtitle: const Text('Data tabular hasil uji elektrokimia untuk software lab.'),
                 onTap: () {
                   Navigator.pop(ctx);
+                  StorageService().exportToCSV(customSamples: [sample]);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Data CSV berhasil diekspor!')),
                   );
