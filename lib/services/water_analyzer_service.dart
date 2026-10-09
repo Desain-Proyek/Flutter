@@ -118,6 +118,8 @@ class WaterAnalyzerService {
     required WaterSourceType sourceType,
     required ScanParameters params,
     required List<VoltammogramPoint> points,
+    double? latitude,
+    double? longitude,
     String? fieldNotes,
     double simulatedOverrideConc = 0.038,
     String operatorName = 'Relawan Posko',
@@ -151,9 +153,15 @@ class WaterAnalyzerService {
     final now = DateTime.now();
     final sampleId = 'PS-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour}${now.minute}${now.second}';
 
+    // Pastikan koordinat 0,0 tidak disimpan
+    final validLat = (latitude == 0.0 && longitude == 0.0) ? null : latitude;
+    final validLng = (latitude == 0.0 && longitude == 0.0) ? null : longitude;
+
     return WaterSample(
       id: sampleId,
       locationName: locationName,
+      latitude: validLat,
+      longitude: validLng,
       sourceType: sourceType,
       timestamp: now,
       safetyStatus: status,

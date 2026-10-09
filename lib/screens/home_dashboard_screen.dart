@@ -102,7 +102,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   _buildOverallGaugeCard(avgWqi, overallStatus, samples.length, isDark),
                   const SizedBox(height: 22),
 
-                  // Rapid Field Test Shortcuts (1-Tap Test)
+                  // Rapid Field Test Shortcuts (1-Tap Test) - Sementara di-comment
+                  /*
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -119,6 +120,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   const SizedBox(height: 10),
                   _buildQuickTestGrid(context),
                   const SizedBox(height: 24),
+                  */
 
                   // Recent Field Test Logs
                   Row(
@@ -242,6 +244,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildQuickTestGrid(BuildContext context) {
     final quickAnalytes = [
       TargetAnalyte.lead,

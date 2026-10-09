@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/water_sample.dart';
 import '../models/electrochemical_test.dart';
@@ -196,26 +199,63 @@ class StorageService {
   /// Real-time stream of all water samples from Firestore, ordered newest first.
   ///
   /// Synchronizes the internal [_samples] cache on each emission.
-  Stream<List<WaterSample>> get samplesStream {
-    return _firestore
+  Stream<List<WaterSample>> get samplesStream async* {
+    var user = FirebaseAuth.instance.currentUser;
+    debugPrint(
+      'FirebaseAuth.instance.currentUser when stream starts: '
+      '${user != null ? "uid=${user.uid}" : "null (NOT signed in)"}',
+    );
+
+    if (user == null) {
+      debugPrint('[StorageService] User is not signed in when stream starts. Signing in anonymously...');
+      try {
+        final cred = await FirebaseAuth.instance.signInAnonymously();
+        user = cred.user;
+        debugPrint('[StorageService] Successfully signed in anonymously: uid=${user?.uid}');
+      } catch (e) {
+        debugPrint('[StorageService] Anonymous sign-in attempt failed: $e');
+      }
+    }
+
+    yield* _firestore
         .collection(_collectionName)
         .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      final samples = snapshot.docs.map((doc) {
-        return WaterSample.fromMap(
-          doc.id,
-          doc.data(),
-        );
-      }).toList();
+        .snapshots(includeMetadataChanges: true)
+        .where((snapshot) {
+          debugPrint(
+            'snapshot.docs.length: ${snapshot.docs.length}, '
+            'snapshot.metadata.isFromCache: ${snapshot.metadata.isFromCache}, '
+            'snapshot.metadata.hasPendingWrites: ${snapshot.metadata.hasPendingWrites}',
+          );
 
-      // Update local cache
-      _samples
-        ..clear()
-        ..addAll(samples);
+          if (snapshot.metadata.isFromCache && snapshot.docs.isEmpty) {
+            debugPrint(
+              'Ignoring snapshot where isFromCache && docs.isEmpty '
+              'so local cache is not wiped.',
+            );
+            return false;
+          }
+          return true;
+        })
+        .map<List<WaterSample>>((snapshot) {
+          final samples = snapshot.docs.map((doc) {
+            return WaterSample.fromMap(
+              doc.id,
+              doc.data(),
+            );
+          }).toList();
 
-      return List.unmodifiable(_samples);
-    });
+          // Update local cache
+          _samples
+            ..clear()
+            ..addAll(samples);
+
+          return List<WaterSample>.unmodifiable(_samples);
+        })
+        .handleError((e) {
+          debugPrint('Firestore stream error: $e');
+          throw e;
+        });
   }
 
   // ============================================================
@@ -226,24 +266,59 @@ class StorageService {
   ///
   /// The samples are sorted by timestamp, newest first.
   Future<List<WaterSample>> loadSamplesFromFirestore() async {
-    final snapshot = await _firestore
-        .collection(_collectionName)
-        .orderBy('timestamp', descending: true)
-        .get();
+    final user = FirebaseAuth.instance.currentUser;
+    debugPrint(
+      'FirebaseAuth.instance.currentUser before loadSamplesFromFirestore: '
+      '${user != null ? "uid=${user.uid}" : "null (NOT signed in)"}',
+    );
 
-    final samples = snapshot.docs.map((doc) {
-      return WaterSample.fromMap(
-        doc.id,
-        doc.data(),
+    if (user == null) {
+      debugPrint('[StorageService] User is not signed in before loadSamplesFromFirestore. Signing in anonymously...');
+      try {
+        final cred = await FirebaseAuth.instance.signInAnonymously();
+        debugPrint('[StorageService] Successfully signed in anonymously: uid=${cred.user?.uid}');
+      } catch (e) {
+        debugPrint('[StorageService] Anonymous sign-in attempt failed: $e');
+      }
+    }
+
+    try {
+      final snapshot = await _firestore
+          .collection(_collectionName)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      debugPrint(
+        'snapshot.docs.length: ${snapshot.docs.length}, '
+        'snapshot.metadata.isFromCache: ${snapshot.metadata.isFromCache}, '
+        'snapshot.metadata.hasPendingWrites: ${snapshot.metadata.hasPendingWrites}',
       );
-    }).toList();
 
-    // Replace local cache with Firestore data.
-    _samples
-      ..clear()
-      ..addAll(samples);
+      if (snapshot.metadata.isFromCache && snapshot.docs.isEmpty) {
+        debugPrint(
+          'Ignoring get snapshot where isFromCache && docs.isEmpty '
+          'so local cache is not wiped.',
+        );
+        return List.unmodifiable(_samples);
+      }
 
-    return List.unmodifiable(_samples);
+      final samples = snapshot.docs.map((doc) {
+        return WaterSample.fromMap(
+          doc.id,
+          doc.data(),
+        );
+      }).toList();
+
+      // Replace local cache with Firestore data.
+      _samples
+        ..clear()
+        ..addAll(samples);
+
+      return List.unmodifiable(_samples);
+    } catch (e) {
+      debugPrint('Firestore get error: $e');
+      return List.unmodifiable(_samples);
+    }
   }
 
   // ============================================================
@@ -376,7 +451,7 @@ class StorageService {
     );
 
     for (final sample in targetSamples) {
-      for (final reading in sample.readings) {
+      if (sample.readings.isEmpty) {
         buffer.writeln(
           '${sample.id},'
           '"${sample.locationName}",'
@@ -384,15 +459,114 @@ class StorageService {
           '${sample.timestamp.toIso8601String()},'
           '${sample.waterQualityIndex.toStringAsFixed(1)},'
           '${sample.safetyStatus.name},'
-          '${reading.analyte.name},'
-          '${reading.measuredValue.toStringAsFixed(4)},'
-          '${reading.thresholdLimit.toStringAsFixed(4)},'
-          '${reading.isExceeded}',
+          '${sample.scanParameters.analyte.name},'
+          '0.0000,'
+          '0.0000,'
+          'false',
         );
+      } else {
+        for (final reading in sample.readings) {
+          buffer.writeln(
+            '${sample.id},'
+            '"${sample.locationName}",'
+            '${sample.sourceType.name},'
+            '${sample.timestamp.toIso8601String()},'
+            '${sample.waterQualityIndex.toStringAsFixed(1)},'
+            '${sample.safetyStatus.name},'
+            '${reading.analyte.name},'
+            '${reading.measuredValue.toStringAsFixed(4)},'
+            '${reading.thresholdLimit.toStringAsFixed(4)},'
+            '${reading.isExceeded}',
+          );
+        }
       }
     }
 
     return buffer.toString();
+  }
+
+  /// Get user's Downloads directory across platforms with fallback.
+  Future<Directory> getDownloadsDirectory() async {
+    String dirPath;
+    if (Platform.isWindows) {
+      final userProfile = Platform.environment['USERPROFILE'];
+      if (userProfile != null && userProfile.isNotEmpty) {
+        dirPath = '$userProfile\\Downloads';
+      } else {
+        dirPath = Directory.current.path;
+      }
+    } else if (Platform.isMacOS || Platform.isLinux) {
+      final home = Platform.environment['HOME'];
+      if (home != null && home.isNotEmpty) {
+        dirPath = '$home/Downloads';
+      } else {
+        dirPath = Directory.current.path;
+      }
+    } else {
+      dirPath = Directory.current.path;
+    }
+
+    final dir = Directory(dirPath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  /// Export samples to a CSV file and save it directly to the Downloads folder.
+  Future<File> exportAndSaveCSV({
+    List<WaterSample>? customSamples,
+    String? fileName,
+  }) async {
+    final content = exportToCSV(customSamples: customSamples);
+    final dir = await getDownloadsDirectory();
+
+    String finalFileName;
+    if (fileName != null && fileName.trim().isNotEmpty) {
+      var sanitized = fileName.trim().replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      if (!sanitized.toLowerCase().endsWith('.csv')) {
+        sanitized = '$sanitized.csv';
+      }
+      finalFileName = sanitized;
+    } else {
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+      finalFileName = 'Catatan_Lapangan_$dateStr.csv';
+    }
+
+    final filePath = '${dir.path}${Platform.pathSeparator}$finalFileName';
+    final file = File(filePath);
+    await file.writeAsString(content, flush: true);
+    return file;
+  }
+
+  /// Open file location in File Explorer / Finder and highlight the file.
+  static Future<void> openFileLocation(String filePath) async {
+    try {
+      final file = File(filePath);
+      final exists = await file.exists();
+      final cleanPath = filePath.replaceAll('/', '\\');
+
+      if (Platform.isWindows) {
+        if (exists) {
+          await Process.run('explorer.exe', ['/select,', cleanPath]);
+        } else {
+          final parentDir = file.parent.path.replaceAll('/', '\\');
+          await Process.run('explorer.exe', [parentDir]);
+        }
+      } else if (Platform.isMacOS) {
+        if (exists) {
+          await Process.run('open', ['-R', filePath]);
+        } else {
+          await Process.run('open', [file.parent.path]);
+        }
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [file.parent.path]);
+      }
+    } catch (e) {
+      debugPrint('Gagal membuka lokasi file: $e');
+    }
   }
 
   // ============================================================
