@@ -138,6 +138,7 @@ class WaterSample {
       'fieldNotes': fieldNotes,
       'operatorName': operatorName,
       'operatorId': operatorId,
+      'userId': operatorId, // required by Firestore rules (userId == auth.uid)
       'operatorEmail': operatorEmail,
     };
   }
@@ -195,6 +196,11 @@ class WaterSample {
       final geo = map['location'] as GeoPoint;
       lat = geo.latitude;
       lng = geo.longitude;
+    }
+    // 0,0 ("Null Island") is a placeholder, not a real location.
+    if (lat == 0 && lng == 0) {
+      lat = null;
+      lng = null;
     }
 
     final readingsData = map['readings'] as List<dynamic>? ?? [];

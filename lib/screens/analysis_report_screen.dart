@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/water_sample.dart';
 import '../models/mitigation_guide.dart';
+import '../services/storage_service.dart';
 import '../widgets/water_quality_gauge.dart';
 import '../widgets/mitigation_card.dart';
 
@@ -416,12 +417,41 @@ class AnalysisReportScreen extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.table_chart_rounded, color: Colors.green),
                 title: const Text('Ekspor Raw Data CSV'),
-                subtitle: const Text('Data titik voltammogram potensial & arus untuk software lab.'),
-                onTap: () {
+                subtitle: const Text('Data tabular hasil uji elektrokimia untuk software lab.'),
+                onTap: () async {
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Data CSV berhasil diekspor!')),
-                  );
+                  try {
+                    final cleanId = sample.id.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+                    final now = DateTime.now();
+                    final timestamp =
+                        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+                    final fileName = 'Sampel_${cleanId}_$timestamp.csv';
+
+                    final file = await StorageService().exportAndSaveCSV(
+                      customSamples: [sample],
+                      fileName: fileName,
+                    );
+
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('CSV tersimpan di: ${file.path}'),
+                        duration: const Duration(seconds: 6),
+                        action: SnackBarAction(
+                          label: 'Buka Folder',
+                          onPressed: () => StorageService.openFileLocation(file.path),
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal mengekspor CSV: $e'),
+                        backgroundColor: Colors.red.shade800,
+                      ),
+                    );
+                  }
                 },
               ),
             ],

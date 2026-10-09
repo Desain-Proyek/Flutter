@@ -46,11 +46,31 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
               IconButton(
                 icon: const Icon(Icons.download_rounded),
                 tooltip: 'Ekspor Semua ke CSV',
-                onPressed: () {
-                  _storageService.exportToCSV(customSamples: filteredSamples);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Berhasil mengekspor ${filteredSamples.length} data ke CSV!')),
-                  );
+                onPressed: () async {
+                  try {
+                    final file = await _storageService.exportAndSaveCSV(
+                      customSamples: filteredSamples,
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('CSV tersimpan di: ${file.path}'),
+                        duration: const Duration(seconds: 6),
+                        action: SnackBarAction(
+                          label: 'Buka Folder',
+                          onPressed: () => StorageService.openFileLocation(file.path),
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal mengekspor CSV: $e'),
+                        backgroundColor: Colors.red.shade800,
+                      ),
+                    );
+                  }
                 },
               ),
             ],
@@ -115,6 +135,54 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
               ),
               const Divider(height: 1),
 
+              // Firestore Error Banner
+              if (snapshot.hasError)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        color: Color(0xFFEF4444),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Error Stream Firestore:',
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SelectableText(
+                              '${snapshot.error}',
+                              style: const TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // List of Samples
               Expanded(
                 child: RefreshIndicator(
@@ -124,10 +192,31 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
                   },
                   child: filteredSamples.isEmpty
                       ? ListView(
-                          children: const [
-                            SizedBox(height: 80),
+                          children: [
+                            const SizedBox(height: 80),
                             Center(
-                              child: Text('Tidak ada catatan pengujian air yang cocok.'),
+                              child: snapshot.hasError
+                                  ? Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.cloud_off_rounded, size: 48, color: Color(0xFFEF4444)),
+                                          const SizedBox(height: 12),
+                                          const Text(
+                                            'Gagal memuat data dari Firestore',
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          SelectableText(
+                                            '${snapshot.error}',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : const Text('Tidak ada catatan pengujian air yang cocok.'),
                             ),
                           ],
                         )

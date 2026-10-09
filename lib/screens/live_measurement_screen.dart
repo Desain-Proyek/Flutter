@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/electrochemical_test.dart';
 import '../models/water_sample.dart';
 import '../models/device_status.dart';
@@ -7,6 +9,7 @@ import '../services/potentiostat_service.dart';
 import '../services/water_analyzer_service.dart';
 import '../services/storage_service.dart';
 import '../services/auth_service.dart';
+import '../services/location_service.dart';
 import '../widgets/live_voltammogram_chart.dart';
 import '../widgets/connection_badge.dart';
 import '../widgets/field_parameter_card.dart';
@@ -31,10 +34,16 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
   final WaterAnalyzerService _analyzerService = WaterAnalyzerService();
   final StorageService _storageService = StorageService();
   final AuthService _authService = AuthService();
+  final LocationService _locationService = LocationService();
+  final MapController _miniMapController = MapController();
 
   late ScanParameters _parameters;
   final TextEditingController _locationController = TextEditingController(text: 'Posko Pengungsian 01');
   WaterSourceType _selectedSource = WaterSourceType.well;
+
+  double? _lat;
+  double? _lng;
+  bool _isLoadingLocation = false;
 
   bool _showBaseline = true;
   final double _simulatedContaminantLevel = 0.042; // default simulated concentration in mg/L
@@ -87,11 +96,12 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
       }
     });
 
-    if (widget.autoStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.autoStart) {
         _handleStartScan();
-      });
-    }
+      }
+      _fetchCurrentLocation(showFeedback: false);
+    });
   }
 
   @override
@@ -100,6 +110,39 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
     _liveDataSub?.cancel();
     _locationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchCurrentLocation({bool showFeedback = true}) async {
+    setState(() => _isLoadingLocation = true);
+    final pos = await _locationService.getCurrentPosition();
+    if (mounted) {
+      setState(() {
+        _isLoadingLocation = false;
+        if (pos != null && (pos.latitude != 0.0 || pos.longitude != 0.0)) {
+          _lat = pos.latitude;
+          _lng = pos.longitude;
+        }
+      });
+
+      if (_lat != null && _lng != null) {
+        _miniMapController.move(LatLng(_lat!, _lng!), 15.0);
+        if (showFeedback) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Lokasi terdeteksi: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else if (showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lokasi tidak tersedia'),
+            backgroundColor: Color(0xFFD97706),
+          ),
+        );
+      }
+    }
   }
 
   void _handleStartScan() {
@@ -119,7 +162,29 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
     _potentiostatService.stopScan();
   }
 
-  void _analyzeFinishedScan() {
+  Future<void> _analyzeFinishedScan() async {
+    // Jika belum ada koordinat, coba ambil lokasi otomatis saat scan selesai
+    if (_lat == null || _lng == null) {
+      final pos = await _locationService.getCurrentPosition();
+      if (pos != null && (pos.latitude != 0.0 || pos.longitude != 0.0)) {
+        if (mounted) {
+          setState(() {
+            _lat = pos.latitude;
+            _lng = pos.longitude;
+          });
+        }
+      }
+    }
+
+    if ((_lat == null || _lng == null) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lokasi tidak tersedia'),
+          backgroundColor: Color(0xFFD97706),
+        ),
+      );
+    }
+
     _detectedPeaks = _analyzerService.detectPeaks(
       points: _livePoints,
       params: _parameters,
@@ -132,15 +197,18 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
       sourceType: _selectedSource,
       params: _parameters,
       points: List.of(_livePoints),
+      latitude: _lat,
+      longitude: _lng,
       simulatedOverrideConc: _simulatedContaminantLevel,
       operatorName: _authService.operatorDisplayName,
       operatorId: _authService.operatorId,
       operatorEmail: _authService.operatorEmail,
     );
 
-    _storageService.saveSample(sample);
+    await _storageService.saveSample(sample);
 
     // Show completion snackbar with action
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Pengujian ${_parameters.analyte.title} Selesai!'),
@@ -268,9 +336,132 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
+                IconButton(
+                  icon: _isLoadingLocation
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location_rounded, color: Color(0xFF0284C7)),
+                  tooltip: 'Gunakan lokasi saya (GPS)',
+                  onPressed: isScanning ? null : () => _fetchCurrentLocation(),
+                ),
               ],
             ),
-            const Divider(height: 12),
+            // Indikator Koordinat & Info Koreksi
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.gps_fixed_rounded,
+                    size: 13,
+                    color: _lat != null ? const Color(0xFF0284C7) : Colors.grey,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _lat != null && _lng != null
+                          ? 'Koordinat: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                          : 'Lokasi belum disetel (Tekan GPS atau ketuk peta)',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: _lat != null ? const Color(0xFF0284C7) : Colors.grey,
+                        fontWeight: _lat != null ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (_lat != null)
+                    InkWell(
+                      onTap: isScanning
+                          ? null
+                          : () {
+                              setState(() {
+                                _lat = null;
+                                _lng = null;
+                              });
+                            },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Text('Reset', style: TextStyle(fontSize: 11, color: Colors.red)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Peta Mini untuk Koreksi Manual Titik Sampel
+            Container(
+              height: 130,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark ? Colors.white12 : Colors.black12,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _miniMapController,
+                    options: MapOptions(
+                      initialCenter: _lat != null && _lng != null
+                          ? LatLng(_lat!, _lng!)
+                          : const LatLng(-6.9175, 107.6191),
+                      initialZoom: _lat != null ? 15.0 : 11.0,
+                      onTap: isScanning
+                          ? null
+                          : (tapPosition, point) {
+                              setState(() {
+                                _lat = point.latitude;
+                                _lng = point.longitude;
+                              });
+                              _miniMapController.move(point, _miniMapController.camera.zoom);
+                            },
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.despro',
+                      ),
+                      if (_lat != null && _lng != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(_lat!, _lng!),
+                              width: 32,
+                              height: 32,
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Color(0xFFEF4444),
+                                size: 32,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  Positioned(
+                    bottom: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        '💡 Ketuk peta untuk koreksi manual pin',
+                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

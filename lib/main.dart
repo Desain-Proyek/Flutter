@@ -18,6 +18,20 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  var user = FirebaseAuth.instance.currentUser;
+  debugPrint('Firebase initialized. currentUser: ${user != null ? "uid=${user.uid}" : "null (NOT signed in)"}');
+
+  if (user == null) {
+    debugPrint('[Auth] No user signed in. Signing in anonymously before app starts...');
+    try {
+      final cred = await FirebaseAuth.instance.signInAnonymously();
+      user = cred.user;
+      debugPrint('[Auth] Successfully signed in anonymously on startup: uid=${user?.uid}');
+    } catch (e) {
+      debugPrint('[Auth] Startup anonymous sign-in error: $e');
+    }
+  }
+
   runApp(const PortaStatApp());
 }
 
