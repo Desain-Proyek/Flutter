@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/water_sample.dart';
 import '../services/storage_service.dart';
 import 'analysis_report_screen.dart';
+import 'pdf_preview_screen.dart';
 
 class FieldLogScreen extends StatefulWidget {
   const FieldLogScreen({super.key});
@@ -277,21 +278,41 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      'WQI: ${sample.waterQualityIndex.toStringAsFixed(0)}/100',
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          'WQI: ${sample.waterQualityIndex.toStringAsFixed(0)}/100',
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 20, color: Color(0xFF0284C7)),
+                        tooltip: 'Ekspor Laporan PDF',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PdfPreviewScreen(sample: sample),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

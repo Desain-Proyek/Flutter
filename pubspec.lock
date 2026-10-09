@@ -544,14 +544,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
-  serial_port_win32:
-    dependency: "direct main"
-    description:
-      name: serial_port_win32
-      sha256: a5c12f60584b85b87618d42c084d5400112c2e3ef55421676834a32341260412
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
   sky_engine:
     dependency: transitive
     description: flutter

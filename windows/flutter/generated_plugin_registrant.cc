@@ -10,14 +10,7 @@
 #include <firebase_auth/firebase_auth_plugin_c_api.h>
 #include <firebase_core/firebase_core_plugin_c_api.h>
 #include <geolocator_windows/geolocator_windows.h>
-// Declare the Windows registrar entry point here instead of including the
-// package header, which may resolve to the Linux Flutter header in IntelliSense.
-namespace flutter {
-class PluginRegistrarWindows;
-}
-
-void PrintingPluginRegisterWithRegistrar(
-    flutter::PluginRegistrarWindows* registrar);
+#include <printing/printing_plugin.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   CloudFirestorePluginCApiRegisterWithRegistrar(
