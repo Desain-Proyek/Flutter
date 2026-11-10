@@ -6,6 +6,7 @@ import '../services/potentiostat_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/water_quality_gauge.dart';
 import '../widgets/connection_badge.dart';
+import '../widgets/offline_indicator_badge.dart';
 import 'live_measurement_screen.dart';
 import 'analysis_report_screen.dart';
 
@@ -21,6 +22,31 @@ class HomeDashboardScreen extends StatefulWidget {
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   final PotentiostatService _potentiostatService = PotentiostatService();
   final StorageService _storageService = StorageService();
+
+  @override
+  void initState() {
+    super.initState();
+    _storageService.lastSyncError.addListener(_onSyncError);
+  }
+
+  @override
+  void dispose() {
+    _storageService.lastSyncError.removeListener(_onSyncError);
+    super.dispose();
+  }
+
+  void _onSyncError() {
+    final err = _storageService.lastSyncError.value;
+    if (err != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: Colors.red,
+        ),
+      );
+      _storageService.lastSyncError.value = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +97,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
               ],
             ),
             actions: [
+              const OfflineIndicatorBadge(compact: true),
+              const SizedBox(width: 8),
               StreamBuilder<DeviceStatus>(
                 stream: _potentiostatService.deviceStatusStream,
                 initialData: _potentiostatService.deviceStatus,
@@ -121,6 +149,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   _buildQuickTestGrid(context),
                   const SizedBox(height: 24),
                   */
+
+                  // Offline Status Banner
+                  const OfflineStatusBar(),
 
                   // Recent Field Test Logs
                   Row(
@@ -389,11 +420,38 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 color: statusColor,
               ),
             ),
-            title: Text(
-              sample.locationName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    sample.locationName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                  ),
+                ),
+                if (sample.isPendingSync)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_upload_outlined, size: 11, color: Color(0xFFD97706)),
+                        SizedBox(width: 2),
+                        Text(
+                          'Belum terkirim',
+                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFFD97706)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
             subtitle: Text(
               '${sample.sourceType.label} • WQI: ${sample.waterQualityIndex.toStringAsFixed(0)}/100',

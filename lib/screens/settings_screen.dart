@@ -195,11 +195,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
             ),
-            child: ListTile(
-              leading: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
-              title: const Text('Reset Riwayat Pengujian'),
-              subtitle: const Text('Hapus seluruh riwayat pengujian milik akun ini.'),
-              onTap: () => _confirmResetDialog(context),
+            child: Column(
+              children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: StorageService().isOfflineNotifier,
+                  builder: (context, isOffline, _) {
+                    final pending = StorageService().pendingCount;
+                    return SwitchListTile(
+                      secondary: Icon(
+                        isOffline ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
+                        color: isOffline ? const Color(0xFFD97706) : const Color(0xFF10B981),
+                      ),
+                      title: const Text('Simulasi Mode Offline Lapangan'),
+                      subtitle: Text(
+                        isOffline
+                            ? 'Aktif: Bekerja tanpa internet (${pending > 0 ? "$pending sampel pending" : "penyimpanan lokal"}).'
+                            : 'Nonaktif: Terhubung langsung ke Firestore Cloud.',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      value: StorageService().isForceOffline,
+                      onChanged: (val) {
+                        setState(() {
+                          StorageService().setForceOffline(val);
+                        });
+                      },
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                  title: const Text('Reset Riwayat Pengujian'),
+                  subtitle: const Text('Hapus seluruh riwayat pengujian milik akun ini.'),
+                  onTap: () => _confirmResetDialog(context),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),

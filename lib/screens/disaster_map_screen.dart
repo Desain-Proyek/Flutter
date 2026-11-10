@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../models/water_sample.dart';
 import '../services/storage_service.dart';
 import 'analysis_report_screen.dart';
+import '../widgets/offline_indicator_badge.dart';
 
 /// Screen displaying an interactive GIS map of all tested water sources in disaster zones.
 class DisasterMapScreen extends StatefulWidget {
@@ -131,6 +132,37 @@ class _DisasterMapScreenState extends State<DisasterMapScreen> {
                       ),
                     ),
                   ),
+                  if (sample.isPendingSync) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.cloud_upload_outlined,
+                            size: 13,
+                            color: Color(0xFFD97706),
+                            semanticLabel: 'Belum terkirim',
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Belum terkirim',
+                            style: TextStyle(
+                              color: Color(0xFFD97706),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 8),
@@ -278,36 +310,60 @@ class _DisasterMapScreenState extends State<DisasterMapScreen> {
       point: LatLng(sample.latitude!, sample.longitude!),
       width: isSelected ? 52 : 46,
       height: isSelected ? 52 : 46,
-      child: GestureDetector(
-        onTap: () => _showSampleDetailsSheet(context, sample, isDark),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: statusColor,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white,
-              width: isSelected ? 3.0 : 2.0,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: statusColor.withValues(alpha: 0.5),
-                blurRadius: isSelected ? 12 : 8,
-                spreadRadius: isSelected ? 2 : 1,
-                offset: const Offset(0, 3),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onTap: () => _showSampleDetailsSheet(context, sample, isDark),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white,
+                  width: isSelected ? 3.0 : 2.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: statusColor.withValues(alpha: 0.5),
+                    blurRadius: isSelected ? 12 : 8,
+                    spreadRadius: isSelected ? 2 : 1,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Center(
-            child: Icon(
-              isDanger
-                  ? Icons.warning_rounded
-                  : (isSafe ? Icons.water_drop_rounded : Icons.filter_alt_rounded),
-              color: Colors.white,
-              size: isSelected ? 24 : 20,
+              child: Center(
+                child: Icon(
+                  isDanger
+                      ? Icons.warning_rounded
+                      : (isSafe ? Icons.water_drop_rounded : Icons.filter_alt_rounded),
+                  color: Colors.white,
+                  size: isSelected ? 24 : 20,
+                ),
+              ),
             ),
           ),
-        ),
+          if (sample.isPendingSync)
+            Positioned(
+              right: -1,
+              top: -1,
+              child: Container(
+                padding: const EdgeInsets.all(2.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                child: const Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 10,
+                  color: Colors.white,
+                  semanticLabel: 'Belum terkirim',
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -403,20 +459,26 @@ class _DisasterMapScreenState extends State<DisasterMapScreen> {
                                 ),
                               ],
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0284C7).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${samplesWithCoords.length} Titik Terpasang',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0284C7),
+                            Row(
+                              children: [
+                                const OfflineIndicatorBadge(compact: true),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${samplesWithCoords.length} Titik Terpasang',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                           ],
                         ),

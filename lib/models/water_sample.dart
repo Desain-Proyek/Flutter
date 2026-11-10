@@ -105,6 +105,7 @@ class WaterSample {
   final String operatorName;
   final String? operatorId;
   final String? operatorEmail;
+  final bool isPendingSync;
 
   const WaterSample({
     required this.id,
@@ -122,7 +123,47 @@ class WaterSample {
     this.operatorName = 'Relawan Posko',
     this.operatorId,
     this.operatorEmail,
+    this.isPendingSync = false,
   });
+
+  /// Create a copy of WaterSample with updated fields.
+  WaterSample copyWith({
+    String? id,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    WaterSourceType? sourceType,
+    DateTime? timestamp,
+    WaterSafetyStatus? safetyStatus,
+    double? waterQualityIndex,
+    List<ContaminantReading>? readings,
+    List<VoltammogramPoint>? rawScanData,
+    ScanParameters? scanParameters,
+    String? fieldNotes,
+    String? operatorName,
+    String? operatorId,
+    String? operatorEmail,
+    bool? isPendingSync,
+  }) {
+    return WaterSample(
+      id: id ?? this.id,
+      locationName: locationName ?? this.locationName,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      sourceType: sourceType ?? this.sourceType,
+      timestamp: timestamp ?? this.timestamp,
+      safetyStatus: safetyStatus ?? this.safetyStatus,
+      waterQualityIndex: waterQualityIndex ?? this.waterQualityIndex,
+      readings: readings ?? this.readings,
+      rawScanData: rawScanData ?? this.rawScanData,
+      scanParameters: scanParameters ?? this.scanParameters,
+      fieldNotes: fieldNotes ?? this.fieldNotes,
+      operatorName: operatorName ?? this.operatorName,
+      operatorId: operatorId ?? this.operatorId,
+      operatorEmail: operatorEmail ?? this.operatorEmail,
+      isPendingSync: isPendingSync ?? this.isPendingSync,
+    );
+  }
 
   /// Convert WaterSample into Firestore-compatible data.
   Map<String, dynamic> toMap() {
@@ -146,8 +187,9 @@ class WaterSample {
   /// Reconstruct WaterSample from Firestore data.
   factory WaterSample.fromMap(
     String id,
-    Map<String, dynamic> map,
-  ) {
+    Map<String, dynamic> map, {
+    bool isPendingSync = false,
+  }) {
     final timestampData = map['timestamp'] ?? map['createdAt'];
 
     DateTime timestamp;
@@ -235,6 +277,7 @@ class WaterSample {
           map['operatorName'] as String? ?? 'Relawan Posko',
       operatorId: (map['userId'] ?? map['operatorId']) as String?,
       operatorEmail: map['operatorEmail'] as String?,
+      isPendingSync: isPendingSync,
     );
   }
 

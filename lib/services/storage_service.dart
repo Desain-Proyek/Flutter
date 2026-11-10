@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -20,6 +22,7 @@ class StorageService {
 
   StorageService._internal() {
     _initDefaultMockData();
+    _startConnectivityMonitoring();
   }
 
   // ============================================================
@@ -31,13 +34,164 @@ class StorageService {
   static const String _collectionName = 'water_samples';
 
   // ============================================================
-  // LOCAL CACHE
+  // LOCAL CACHE & CONNECTIVITY STATE
   // ============================================================
 
   final List<WaterSample> _samples = [];
 
   /// Get all samples currently loaded in local memory.
   List<WaterSample> get allSamples => List.unmodifiable(_samples);
+
+  /// Number of samples waiting to be synchronized to the server.
+  int get pendingCount => _samples.where((s) => s.isPendingSync).length;
+
+  bool _isFromCache = false;
+  bool _forceOffline = false;
+  bool _isInternetConnected = true;
+  Timer? _connectivityTimer;
+
+  /// Whether the latest stream or query snapshot was served from the local cache.
+  bool get isFromCache => _isFromCache;
+
+  /// Whether user manually forced offline simulation.
+  bool get isForceOffline => _forceOffline;
+
+  /// Whether internet connection is currently reachable.
+  bool get isInternetConnected => _isInternetConnected;
+
+  /// True if the system is currently operating in offline mode
+  /// (forced offline, internet unreachable, cache-backed, or pending sync).
+  bool get isOffline =>
+      _forceOffline || !_isInternetConnected || _isFromCache || pendingCount > 0;
+
+  /// Reactive notifier for offline state changes across the app.
+  final ValueNotifier<bool> isOfflineNotifier = ValueNotifier<bool>(false);
+
+  /// Notifier for background sync failures (e.g. permission-denied during sync).
+  final ValueNotifier<String?> lastSyncError = ValueNotifier<String?>(null);
+
+  void _updateOfflineState() {
+    final currentStatus = isOffline;
+    if (isOfflineNotifier.value != currentStatus) {
+      isOfflineNotifier.value = currentStatus;
+    }
+  }
+
+  void _startConnectivityMonitoring() {
+    checkInternetConnection();
+    // Monitor connection every 2 seconds for real-time automatic detection & auto-reconnect
+    _connectivityTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      checkInternetConnection();
+    });
+  }
+
+  /// Manually force or disable offline mode (e.g., for disaster drill simulations).
+  void setForceOffline(bool value) {
+    if (_forceOffline == value) return;
+    _forceOffline = value;
+    if (_forceOffline) {
+      _isInternetConnected = false;
+      _updateOfflineState();
+      try {
+        _firestore.disableNetwork();
+      } catch (_) {}
+    } else {
+      try {
+        _firestore.enableNetwork();
+      } catch (_) {}
+      checkInternetConnection();
+    }
+  }
+
+  bool _isCheckingConnectivity = false;
+  bool _isSyncingPending = false;
+
+  /// Actively test internet reachability to high-availability DNS hosts.
+  Future<bool> checkInternetConnection() async {
+    if (_forceOffline) {
+      if (_isInternetConnected) {
+        _isInternetConnected = false;
+        _updateOfflineState();
+      }
+      return false;
+    }
+
+    if (_isCheckingConnectivity) return _isInternetConnected;
+    _isCheckingConnectivity = true;
+
+    bool connected = false;
+    try {
+      final results = await InternetAddress.lookup('dns.google')
+          .timeout(const Duration(milliseconds: 1500));
+      connected = results.isNotEmpty && results[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      connected = false;
+    } finally {
+      _isCheckingConnectivity = false;
+    }
+
+    final wasOffline = !_isInternetConnected;
+    _isInternetConnected = connected;
+    _updateOfflineState();
+
+    // Auto-reconnect triggered: transition from offline to online!
+    if (connected && wasOffline) {
+      debugPrint('[StorageService] Internet restored! Auto-reconnecting and syncing...');
+      _onAutoReconnect();
+    }
+
+    return connected;
+  }
+
+  /// Automatically called as soon as internet connection is restored.
+  Future<void> _onAutoReconnect() async {
+    if (_isSyncingPending) return;
+    _isSyncingPending = true;
+
+    try {
+      try {
+        await _firestore.enableNetwork();
+      } catch (_) {}
+
+      // Ensure user is signed in
+      var user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        try {
+          final cred = await FirebaseAuth.instance.signInAnonymously();
+          user = cred.user;
+        } catch (e) {
+          debugPrint('[StorageService] Anonymous sign-in on auto-reconnect failed: $e');
+        }
+      }
+
+      // Automatically synchronize all pending offline samples to Firestore
+      final pendingList = _samples.where((s) => s.isPendingSync).toList();
+      for (final pending in pendingList) {
+        try {
+          await _firestore
+              .collection(_collectionName)
+              .doc(pending.id)
+              .set(pending.toMap())
+              .timeout(const Duration(seconds: 8));
+
+          final idx = _samples.indexWhere((s) => s.id == pending.id);
+          if (idx != -1) {
+            _samples[idx] = pending.copyWith(isPendingSync: false);
+          }
+        } catch (e) {
+          debugPrint('[StorageService] Auto-sync error for ${pending.id}: $e');
+        }
+      }
+
+      // Pull fresh data from Firestore
+      await loadSamplesFromFirestore();
+    } catch (e) {
+      debugPrint('[StorageService] Error during auto-reconnect: $e');
+    } finally {
+      _isSyncingPending = false;
+      _updateOfflineState();
+    }
+  }
 
   // ============================================================
   // MOCK DATA
@@ -177,19 +331,53 @@ class StorageService {
 
   /// Save a water sample to Firestore.
   ///
-  /// The document ID is the WaterSample ID.
+  /// Does not await the server on the main path so that offline mode does not hang.
   Future<void> saveSample(WaterSample sample) async {
-    await _firestore
-        .collection(_collectionName)
-        .doc(sample.id)
-        .set(sample.toMap());
+    final user = FirebaseAuth.instance.currentUser;
+    final operatorUid = user?.uid ?? sample.operatorId ?? 'offline_volunteer';
 
-    // Update local cache after Firestore succeeds.
+    final pendingSample = sample.copyWith(
+      isPendingSync: true,
+      operatorId: operatorUid,
+    );
+
+    // Update local cache immediately so the measurement screen does not hang.
     _samples.removeWhere(
       (existing) => existing.id == sample.id,
     );
+    _samples.insert(0, pendingSample);
+    _updateOfflineState();
 
-    _samples.insert(0, sample);
+    // If currently offline, keep in local cache and auto-reconnect will sync it later.
+    if (isOffline) {
+      debugPrint('[StorageService] Saved sample ${sample.id} locally in offline queue.');
+      return;
+    }
+
+    // Start the write without awaiting it on the main path.
+    _firestore
+        .collection(_collectionName)
+        .doc(sample.id)
+        .set(pendingSample.toMap())
+        .then((_) {
+      // Mark sample as synchronized once server acknowledges write
+      final idx = _samples.indexWhere((s) => s.id == sample.id);
+      if (idx != -1) {
+        _samples[idx] = pendingSample.copyWith(isPendingSync: false);
+        _updateOfflineState();
+      }
+    }).catchError((error) {
+      debugPrint('[StorageService] Background sync error for ${sample.id}: $error');
+      final isPermission = error is FirebaseException && error.code == 'permission-denied';
+      if (isPermission) {
+        _samples.removeWhere((existing) => existing.id == sample.id);
+        lastSyncError.value = 'Izin ditolak: Gagal menyinkronkan sampel ${sample.locationName}.';
+      } else {
+        // Network or offline error: keep in local cache for auto-reconnect
+        _isInternetConnected = false;
+      }
+      _updateOfflineState();
+    });
   }
 
   // ============================================================
@@ -201,19 +389,15 @@ class StorageService {
   /// Synchronizes the internal [_samples] cache on each emission.
   Stream<List<WaterSample>> get samplesStream async* {
     var user = FirebaseAuth.instance.currentUser;
-    debugPrint(
-      'FirebaseAuth.instance.currentUser when stream starts: '
-      '${user != null ? "uid=${user.uid}" : "null (NOT signed in)"}',
-    );
 
     if (user == null) {
-      debugPrint('[StorageService] User is not signed in when stream starts. Signing in anonymously...');
       try {
         final cred = await FirebaseAuth.instance.signInAnonymously();
         user = cred.user;
-        debugPrint('[StorageService] Successfully signed in anonymously: uid=${user?.uid}');
       } catch (e) {
         debugPrint('[StorageService] Anonymous sign-in attempt failed: $e');
+        _isInternetConnected = false;
+        _updateOfflineState();
       }
     }
 
@@ -221,27 +405,20 @@ class StorageService {
         .collection(_collectionName)
         .orderBy('timestamp', descending: true)
         .snapshots(includeMetadataChanges: true)
-        .where((snapshot) {
-          debugPrint(
-            'snapshot.docs.length: ${snapshot.docs.length}, '
-            'snapshot.metadata.isFromCache: ${snapshot.metadata.isFromCache}, '
-            'snapshot.metadata.hasPendingWrites: ${snapshot.metadata.hasPendingWrites}',
-          );
-
-          if (snapshot.metadata.isFromCache && snapshot.docs.isEmpty) {
-            debugPrint(
-              'Ignoring snapshot where isFromCache && docs.isEmpty '
-              'so local cache is not wiped.',
-            );
-            return false;
-          }
-          return true;
-        })
         .map<List<WaterSample>>((snapshot) {
+          _isFromCache = snapshot.metadata.isFromCache;
+          _updateOfflineState();
+
+          if (snapshot.metadata.isFromCache && snapshot.docs.isEmpty && _samples.isNotEmpty) {
+            // Keep local cache if offline and cache has no docs yet
+            return List<WaterSample>.unmodifiable(_samples);
+          }
+
           final samples = snapshot.docs.map((doc) {
             return WaterSample.fromMap(
               doc.id,
               doc.data(),
+              isPendingSync: doc.metadata.hasPendingWrites,
             );
           }).toList();
 
@@ -254,7 +431,9 @@ class StorageService {
         })
         .handleError((e) {
           debugPrint('Firestore stream error: $e');
-          throw e;
+          _isInternetConnected = false;
+          _updateOfflineState();
+          return List<WaterSample>.unmodifiable(_samples);
         });
   }
 
@@ -267,18 +446,14 @@ class StorageService {
   /// The samples are sorted by timestamp, newest first.
   Future<List<WaterSample>> loadSamplesFromFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
-    debugPrint(
-      'FirebaseAuth.instance.currentUser before loadSamplesFromFirestore: '
-      '${user != null ? "uid=${user.uid}" : "null (NOT signed in)"}',
-    );
 
     if (user == null) {
-      debugPrint('[StorageService] User is not signed in before loadSamplesFromFirestore. Signing in anonymously...');
       try {
-        final cred = await FirebaseAuth.instance.signInAnonymously();
-        debugPrint('[StorageService] Successfully signed in anonymously: uid=${cred.user?.uid}');
+        await FirebaseAuth.instance.signInAnonymously();
       } catch (e) {
         debugPrint('[StorageService] Anonymous sign-in attempt failed: $e');
+        _isInternetConnected = false;
+        _updateOfflineState();
       }
     }
 
@@ -288,17 +463,10 @@ class StorageService {
           .orderBy('timestamp', descending: true)
           .get();
 
-      debugPrint(
-        'snapshot.docs.length: ${snapshot.docs.length}, '
-        'snapshot.metadata.isFromCache: ${snapshot.metadata.isFromCache}, '
-        'snapshot.metadata.hasPendingWrites: ${snapshot.metadata.hasPendingWrites}',
-      );
+      _isFromCache = snapshot.metadata.isFromCache;
+      _updateOfflineState();
 
       if (snapshot.metadata.isFromCache && snapshot.docs.isEmpty) {
-        debugPrint(
-          'Ignoring get snapshot where isFromCache && docs.isEmpty '
-          'so local cache is not wiped.',
-        );
         return List.unmodifiable(_samples);
       }
 
@@ -306,6 +474,7 @@ class StorageService {
         return WaterSample.fromMap(
           doc.id,
           doc.data(),
+          isPendingSync: doc.metadata.hasPendingWrites,
         );
       }).toList();
 
@@ -317,6 +486,8 @@ class StorageService {
       return List.unmodifiable(_samples);
     } catch (e) {
       debugPrint('Firestore get error: $e');
+      _isInternetConnected = false;
+      _updateOfflineState();
       return List.unmodifiable(_samples);
     }
   }
@@ -339,6 +510,7 @@ class StorageService {
     final sample = WaterSample.fromMap(
       document.id,
       document.data()!,
+      isPendingSync: document.metadata.hasPendingWrites,
     );
 
     // Update local cache.
@@ -424,50 +596,89 @@ class StorageService {
   // SEARCH & FILTER
   // ============================================================
 
-  /// Filter any list of samples by query, safety status, and water source.
+  /// Filter any list of samples by query, safety status, water source, analyte, date range, and location.
   List<WaterSample> filterSamples(
     List<WaterSample> sourceList, {
     String? query,
     WaterSafetyStatus? statusFilter,
     WaterSourceType? sourceFilter,
+    TargetAnalyte? analyteFilter,
+    DateTimeRange? dateRange,
+    String? locationFilter,
   }) {
     return sourceList.where((sample) {
       // --------------------------------------------------------
-      // TEXT SEARCH
+      // 1. TEXT SEARCH
       // --------------------------------------------------------
       if (query != null && query.isNotEmpty) {
         final q = query.toLowerCase();
-
-        final matchLocation =
-            sample.locationName.toLowerCase().contains(q);
-
-        final matchId =
-            sample.id.toLowerCase().contains(q);
-
-        final matchNotes =
-            (sample.fieldNotes ?? '').toLowerCase().contains(q);
-
-        if (!matchLocation &&
-            !matchId &&
-            !matchNotes) {
+        final matchLocation = sample.locationName.toLowerCase().contains(q);
+        final matchId = sample.id.toLowerCase().contains(q);
+        final matchNotes = (sample.fieldNotes ?? '').toLowerCase().contains(q);
+        if (!matchLocation && !matchId && !matchNotes) {
           return false;
         }
       }
 
       // --------------------------------------------------------
-      // SAFETY STATUS FILTER
+      // 2. SAFETY STATUS FILTER
       // --------------------------------------------------------
-      if (statusFilter != null &&
-          sample.safetyStatus != statusFilter) {
+      if (statusFilter != null && sample.safetyStatus != statusFilter) {
         return false;
       }
 
       // --------------------------------------------------------
-      // SOURCE FILTER
+      // 3. SOURCE FILTER
       // --------------------------------------------------------
-      if (sourceFilter != null &&
-          sample.sourceType != sourceFilter) {
+      if (sourceFilter != null && sample.sourceType != sourceFilter) {
         return false;
+      }
+
+      // --------------------------------------------------------
+      // 4. ANALYTE FILTER
+      // --------------------------------------------------------
+      if (analyteFilter != null) {
+        final hasReading = sample.readings.any((r) => r.analyte == analyteFilter);
+        final hasPreset = sample.scanParameters.analyte == analyteFilter;
+        if (!hasReading && !hasPreset) {
+          return false;
+        }
+      }
+
+      // --------------------------------------------------------
+      // 5. DATE RANGE FILTER
+      // --------------------------------------------------------
+      if (dateRange != null) {
+        final start = DateTime(
+          dateRange.start.year,
+          dateRange.start.month,
+          dateRange.start.day,
+          0,
+          0,
+          0,
+        );
+        final end = DateTime(
+          dateRange.end.year,
+          dateRange.end.month,
+          dateRange.end.day,
+          23,
+          59,
+          59,
+        );
+        if (sample.timestamp.isBefore(start) || sample.timestamp.isAfter(end)) {
+          return false;
+        }
+      }
+
+      // --------------------------------------------------------
+      // 6. LOCATION FILTER
+      // --------------------------------------------------------
+      if (locationFilter != null &&
+          locationFilter.isNotEmpty &&
+          locationFilter != 'Semua Lokasi') {
+        if (sample.locationName.toLowerCase() != locationFilter.toLowerCase()) {
+          return false;
+        }
       }
 
       return true;
@@ -479,12 +690,18 @@ class StorageService {
     String? query,
     WaterSafetyStatus? statusFilter,
     WaterSourceType? sourceFilter,
+    TargetAnalyte? analyteFilter,
+    DateTimeRange? dateRange,
+    String? locationFilter,
   }) {
     return filterSamples(
       _samples,
       query: query,
       statusFilter: statusFilter,
       sourceFilter: sourceFilter,
+      analyteFilter: analyteFilter,
+      dateRange: dateRange,
+      locationFilter: locationFilter,
     );
   }
 
