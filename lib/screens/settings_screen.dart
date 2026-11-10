@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/device_status.dart';
 import '../services/potentiostat_service.dart';
 import '../services/auth_service.dart';
+import '../services/storage_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool isHighContrast;
@@ -18,8 +20,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _selectedStandard = 'WHO_2022';
-  String _selectedLanguage = 'ID';
   final PotentiostatService _potentiostatService = PotentiostatService();
   final AuthService _authService = AuthService();
 
@@ -48,26 +48,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
             ),
-            child: Column(
-              children: [
-                RadioListTile<String>(
-                  title: const Text('WHO Drinking-water Quality Guidelines (4th ed)'),
-                  subtitle: const Text('Pb: 0.01 mg/L, As: 0.01 mg/L, Cd: 0.003 mg/L, Hg: 0.001 mg/L'),
-                  value: 'WHO_2022',
-                  groupValue: _selectedStandard,
-                  activeColor: const Color(0xFF0284C7),
-                  onChanged: (val) => setState(() => _selectedStandard = val!),
-                ),
-                const Divider(height: 1),
-                RadioListTile<String>(
-                  title: const Text('Permenkes RI No. 2 Tahun 2023'),
-                  subtitle: const Text('Standar baku mutu air minum & higiene sanitasi Indonesia'),
-                  value: 'PERMENKES_2023',
-                  groupValue: _selectedStandard,
-                  activeColor: const Color(0xFF0284C7),
-                  onChanged: (val) => setState(() => _selectedStandard = val!),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.verified_outlined, color: Color(0xFF0284C7), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'WHO Drinking-water Quality Guidelines (4th ed)',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Aktif',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Pb: 0.01 mg/L, As: 0.01 mg/L, Cd: 0.003 mg/L, Hg: 0.001 mg/L',
+                          style: TextStyle(fontSize: 11.5, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Standar acuan resmi yang digunakan sistem untuk evaluasi ambang batas toksisitas & Water Quality Index (WQI).',
+                          style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 18),
@@ -92,17 +130,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 1),
                 ListTile(
                   title: const Text('Bahasa Antarmuka'),
-                  subtitle: Text(_selectedLanguage == 'ID' ? 'Bahasa Indonesia' : 'English'),
-                  trailing: DropdownButton<String>(
-                    value: _selectedLanguage,
-                    underline: const SizedBox(),
-                    items: const [
-                      DropdownMenuItem(value: 'ID', child: Text('ID (Indonesia)')),
-                      DropdownMenuItem(value: 'EN', child: Text('EN (English)')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedLanguage = val);
-                    },
+                  subtitle: const Text('Bahasa Indonesia (Bawaan Sistem)'),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'ID (Indonesia)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -156,7 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               leading: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
               title: const Text('Reset Riwayat Pengujian'),
-              subtitle: const Text('Hapus seluruh cache data pengujian air di perangkat ini.'),
+              subtitle: const Text('Hapus seluruh riwayat pengujian milik akun ini.'),
               onTap: () => _confirmResetDialog(context),
             ),
           ),
@@ -319,26 +361,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _confirmResetDialog(BuildContext context) {
-    showDialog(
+  Future<void> _confirmResetDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Hapus Semua Riwayat?'),
-        content: const Text('Tindakan ini akan menghapus semua riwayat catatan lapangan yang tersimpan di perangkat ini.'),
+        content: const Text(
+          'Hapus semua riwayat pengujian milik akun ini dari server? Data tidak bisa dikembalikan.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Riwayat pengujian berhasil direset.')),
-              );
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Hapus'),
           ),
         ],
       ),
     );
+
+    if (confirmed != true || !mounted) return;
+
+    showDialog(
+      context: this.context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Menghapus riwayat pengujian...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final n = await StorageService().deleteAllMySamples();
+      if (!mounted) return;
+      Navigator.of(this.context, rootNavigator: true).pop();
+      final msg = n == 0
+          ? 'Tidak ada riwayat milik akun ini.'
+          : '$n riwayat berhasil dihapus.';
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        SnackBar(content: Text(msg)),
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      Navigator.of(this.context, rootNavigator: true).pop();
+      final message = e.code == 'permission-denied'
+          ? 'Anda tidak punya izin menghapus riwayat ini.'
+          : 'Gagal menghapus riwayat: ${e.message ?? e.code}';
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(this.context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus riwayat: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

@@ -357,14 +357,67 @@ class StorageService {
 
   /// Delete a water sample from Firestore and local cache.
   Future<void> deleteSample(String id) async {
-    await _firestore
-        .collection(_collectionName)
-        .doc(id)
-        .delete();
+    try {
+      await _firestore
+          .collection(_collectionName)
+          .doc(id)
+          .delete()
+          .timeout(const Duration(seconds: 10));
 
-    _samples.removeWhere(
-      (sample) => sample.id == id,
-    );
+      _samples.removeWhere(
+        (sample) => sample.id == id,
+      );
+    } on FirebaseException catch (e) {
+      debugPrint('Firestore deleteSample error (${e.code}): ${e.message}');
+      rethrow;
+    } catch (e) {
+      debugPrint('Firestore deleteSample error: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete all water samples owned by the currently signed-in user from Firestore.
+  ///
+  /// Returns the number of deleted documents.
+  /// Local mock data without a matching [operatorId] is preserved.
+  Future<int> deleteAllMySamples() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw StateError('Belum login');
+    }
+
+    try {
+      final snapshot = await _firestore
+          .collection(_collectionName)
+          .where('userId', isEqualTo: uid)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 15));
+
+      final docs = snapshot.docs;
+      if (docs.isEmpty) {
+        _samples.removeWhere((s) => s.operatorId == uid);
+        return 0;
+      }
+
+      const int chunkSize = 400;
+      for (var i = 0; i < docs.length; i += chunkSize) {
+        final batch = _firestore.batch();
+        final end = (i + chunkSize < docs.length) ? i + chunkSize : docs.length;
+        for (var j = i; j < end; j++) {
+          batch.delete(docs[j].reference);
+        }
+        await batch.commit().timeout(const Duration(seconds: 15));
+      }
+
+      _samples.removeWhere((s) => s.operatorId == uid);
+      return docs.length;
+    } on FirebaseException catch (e) {
+      debugPrint('Firestore deleteAllMySamples error (${e.code}): ${e.message}');
+      rethrow;
+    } catch (e) {
+      debugPrint('Firestore deleteAllMySamples error: $e');
+      rethrow;
+    }
   }
 
   // ============================================================

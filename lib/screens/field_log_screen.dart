@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/water_sample.dart';
 import '../services/storage_service.dart';
+import '../services/auth_service.dart';
 import 'analysis_report_screen.dart';
 import 'pdf_preview_screen.dart';
 
@@ -246,6 +248,7 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
         : (isSafe ? const Color(0xFF10B981) : const Color(0xFFF59E0B));
 
     final reading = sample.readings.isNotEmpty ? sample.readings.first : null;
+    final canDelete = sample.isOwnedBy(AuthService().operatorId);
 
     return Card(
       elevation: 0,
@@ -299,10 +302,14 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
                       ),
                       const SizedBox(width: 4),
                       IconButton(
-                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 20, color: Color(0xFF0284C7)),
+                        icon: const Icon(
+                          Icons.picture_as_pdf_rounded,
+                          size: 20,
+                          color: Color(0xFF0284C7),
+                          semanticLabel: 'Ekspor Laporan PDF',
+                        ),
                         tooltip: 'Ekspor Laporan PDF',
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -312,6 +319,18 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
                           );
                         },
                       ),
+                      if (canDelete)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 20,
+                            color: Color(0xFFEF4444),
+                            semanticLabel: 'Hapus sampel',
+                          ),
+                          tooltip: 'Hapus sampel',
+                          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                          onPressed: () => _confirmDeleteSample(sample),
+                        ),
                     ],
                   ),
                 ],
@@ -376,5 +395,57 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteSample(WaterSample sample) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Sampel?'),
+        content: Text(
+          'Hapus sampel ${sample.locationName}? Tindakan ini tidak bisa dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _storageService.deleteSample(sample.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sampel dihapus')),
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      final message = e.code == 'permission-denied'
+          ? 'Anda tidak punya izin menghapus sampel ini'
+          : 'Gagal menghapus sampel: ${e.message ?? e.code}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus sampel: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

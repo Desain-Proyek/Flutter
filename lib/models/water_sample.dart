@@ -233,10 +233,13 @@ class WaterSample {
       fieldNotes: map['fieldNotes'] as String?,
       operatorName:
           map['operatorName'] as String? ?? 'Relawan Posko',
-      operatorId: map['operatorId'] as String?,
+      operatorId: (map['userId'] ?? map['operatorId']) as String?,
       operatorEmail: map['operatorEmail'] as String?,
     );
   }
+
+  /// Check whether this sample belongs to the given user UID.
+  bool isOwnedBy(String? uid) => uid != null && operatorId == uid;
 
   /// Factory for sample test generation
   factory WaterSample.sampleMock({
