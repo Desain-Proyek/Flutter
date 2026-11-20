@@ -200,7 +200,6 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
       points: List.of(_livePoints),
       latitude: _lat,
       longitude: _lng,
-      simulatedOverrideConc: _simulatedContaminantLevel,
       operatorName: _authService.operatorDisplayName,
       operatorId: _authService.operatorId,
       operatorEmail: _authService.operatorEmail,

@@ -640,6 +640,20 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                   ),
                 ),
+                if (sample.isSimulated)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.5)),
+                    ),
+                    child: const Text(
+                      'Simulasi',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF0284C7)),
+                    ),
+                  ),
                 if (sample.isPendingSync)
                   Container(
                     margin: const EdgeInsets.only(left: 6),

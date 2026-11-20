@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:despro/models/device_status.dart';
 import 'package:despro/models/electrochemical_test.dart';
 import 'package:despro/models/water_sample.dart';
+import 'package:despro/services/potentiostat_service.dart';
 import 'package:despro/services/water_analyzer_service.dart';
 
 void main() {
@@ -63,6 +65,67 @@ void main() {
       expect(peaks.first.potentialV, equals(-0.45));
       expect(peaks.first.peakCurrentMicroA, equals(6.4));
       expect(peaks.first.netHeightMicroA, greaterThan(3.0));
+    });
+
+    test('buildSampleResult returns 0.0 and no-peak note when no peak is detected', () {
+      PotentiostatService().setDeviceConnection(HardwareConnectionState.simulator);
+      final flatPoints = [
+        const VoltammogramPoint(potentialV: -0.60, currentMicroA: 0.5, timestampSec: 0.1),
+        const VoltammogramPoint(potentialV: -0.55, currentMicroA: 0.5, timestampSec: 0.2),
+        const VoltammogramPoint(potentialV: -0.50, currentMicroA: 0.5, timestampSec: 0.3),
+        const VoltammogramPoint(potentialV: -0.45, currentMicroA: 0.5, timestampSec: 0.4),
+        const VoltammogramPoint(potentialV: -0.40, currentMicroA: 0.5, timestampSec: 0.5),
+      ];
+
+      final sample = analyzer.buildSampleResult(
+        locationName: 'Posko Uji Kosong',
+        sourceType: WaterSourceType.well,
+        params: ScanParameters.presetFor(TargetAnalyte.lead),
+        points: flatPoints,
+      );
+
+      expect(sample.readings.length, equals(1));
+      expect(sample.readings.first.measuredValue, equals(0.0));
+      expect(sample.readings.first.peakCurrentMicroA, equals(0.0));
+      expect(sample.readings.first.isExceeded, isFalse);
+      expect(sample.fieldNotes, contains('Tidak ada puncak terdeteksi'));
+      expect(sample.isSimulated, isTrue);
+    });
+
+    test('DeviceStatus defaults to unknown/neutral telemetry values', () {
+      const status = DeviceStatus();
+      expect(status.deviceName, equals('-'));
+      expect(status.firmwareVersion, equals('-'));
+      expect(status.serialPortOrMac, equals('-'));
+      expect(status.batteryPercent, isNull);
+      expect(status.boardTemperatureC, isNull);
+      expect(status.electrodeWearPercent, isNull);
+      expect(status.isDummyCellCalibrated, isFalse);
+    });
+
+    test('WaterSample toMap and fromMap preserve isSimulated with false default', () {
+      final simSample = WaterSample(
+        id: 'sim-1',
+        locationName: 'Posko Sim',
+        sourceType: WaterSourceType.well,
+        timestamp: DateTime(2026, 11, 20, 12, 0),
+        safetyStatus: WaterSafetyStatus.safe,
+        waterQualityIndex: 100.0,
+        readings: const [],
+        rawScanData: const [],
+        scanParameters: ScanParameters.presetFor(TargetAnalyte.lead),
+        isSimulated: true,
+      );
+
+      final simMap = simSample.toMap();
+      expect(simMap['isSimulated'], isTrue);
+
+      final restoredSim = WaterSample.fromMap('sim-1', simMap);
+      expect(restoredSim.isSimulated, isTrue);
+
+      final legacyMap = Map<String, dynamic>.from(simMap)..remove('isSimulated');
+      final restoredLegacy = WaterSample.fromMap('legacy-1', legacyMap);
+      expect(restoredLegacy.isSimulated, isFalse);
     });
   });
 }

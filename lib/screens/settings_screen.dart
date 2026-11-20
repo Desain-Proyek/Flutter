@@ -180,7 +180,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.memory, color: Color(0xFF10B981)),
                   title: const Text('Firmware & Board'),
-                  subtitle: Text('${_potentiostatService.deviceStatus.deviceName} (${_potentiostatService.deviceStatus.firmwareVersion})'),
+                  subtitle: Text(
+                    _potentiostatService.deviceStatus.deviceName == '-' &&
+                            _potentiostatService.deviceStatus.firmwareVersion == '-'
+                        ? 'Tidak tersedia'
+                        : '${_potentiostatService.deviceStatus.deviceName} (${_potentiostatService.deviceStatus.firmwareVersion})',
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.usb_rounded, color: Color(0xFF0284C7)),
+                  title: const Text('Port / Alamat MAC'),
+                  subtitle: Text(
+                    _potentiostatService.deviceStatus.serialPortOrMac == '-'
+                        ? 'Tidak tersedia'
+                        : _potentiostatService.deviceStatus.serialPortOrMac,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.battery_std_rounded, color: Color(0xFF10B981)),
+                  title: const Text('Baterai Perangkat'),
+                  subtitle: Text(
+                    _potentiostatService.deviceStatus.batteryPercent != null
+                        ? '${_potentiostatService.deviceStatus.batteryPercent}%'
+                        : 'Tidak tersedia',
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.thermostat_rounded, color: Color(0xFFF59E0B)),
+                  title: const Text('Suhu Board'),
+                  subtitle: Text(
+                    _potentiostatService.deviceStatus.boardTemperatureC != null
+                        ? '${_potentiostatService.deviceStatus.boardTemperatureC!.toStringAsFixed(1)} °C'
+                        : 'Tidak tersedia',
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.sensors_rounded, color: Color(0xFF6366F1)),
+                  title: const Text('Keausan Elektroda'),
+                  subtitle: Text(
+                    _potentiostatService.deviceStatus.electrodeWearPercent != null
+                        ? '${_potentiostatService.deviceStatus.electrodeWearPercent!.toStringAsFixed(0)}%'
+                        : 'Tidak tersedia',
+                  ),
                 ),
               ],
             ),

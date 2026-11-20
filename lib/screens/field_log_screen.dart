@@ -284,6 +284,25 @@ class _FieldLogScreenState extends State<FieldLogScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (sample.isSimulated) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.4)),
+                          ),
+                          child: const Text(
+                            'Simulasi',
+                            style: TextStyle(
+                              color: Color(0xFF0284C7),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(

@@ -107,6 +107,25 @@ class AnalysisReportScreen extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
+                if (sample.isSimulated) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.4)),
+                    ),
+                    child: const Text(
+                      'Simulasi',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(

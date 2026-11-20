@@ -59,9 +59,15 @@ class ConnectionBadge extends StatelessWidget {
             const SizedBox(width: 6),
             Container(width: 1, height: 12, color: badgeColor.withValues(alpha: 0.3)),
             const SizedBox(width: 6),
-            Icon(Icons.battery_5_bar_rounded, color: badgeColor, size: 14),
+            Icon(
+              status.batteryPercent != null
+                  ? Icons.battery_5_bar_rounded
+                  : Icons.battery_unknown_rounded,
+              color: badgeColor,
+              size: 14,
+            ),
             Text(
-              '${status.batteryPercent}%',
+              status.batteryPercent != null ? '${status.batteryPercent}%' : '-',
               style: TextStyle(
                 color: badgeColor,
                 fontWeight: FontWeight.bold,
@@ -103,7 +109,9 @@ class ConnectionBadge extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Perangkat terdeteksi: ${status.deviceName} (${status.serialPortOrMac})',
+                status.deviceName == '-' && status.serialPortOrMac == '-'
+                    ? 'Perangkat terdeteksi: Tidak tersedia'
+                    : 'Perangkat terdeteksi: ${status.deviceName} (${status.serialPortOrMac})',
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 16),
@@ -150,18 +158,25 @@ class ConnectionBadge extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  service.calibrateDummyCell();
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Kalibrasi Dummy Cell selesai. Elektroda siap!')),
-                  );
-                },
-                icon: const Icon(Icons.tune),
-                label: const Text('Jalankan Self-Check Dummy Cell 3-Elektroda'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(44),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.withValues(alpha: 0.25)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 18, color: Colors.grey),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Uji mandiri otomatis tersedia setelah perangkat terhubung.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

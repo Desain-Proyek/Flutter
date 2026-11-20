@@ -238,15 +238,6 @@ class PotentiostatService {
     _stateController.add(_executionState);
   }
 
-  void calibrateDummyCell() {
-    _deviceStatus = _deviceStatus.copyWith(
-      isDummyCellCalibrated: true,
-      electrodeWearPercent: 5.0,
-      boardTemperatureC: 28.5,
-    );
-    _deviceStatusController.add(_deviceStatus);
-  }
-
   void dispose() {
     _scanTimer?.cancel();
     _deviceStatusController.close();

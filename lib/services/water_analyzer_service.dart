@@ -1,6 +1,8 @@
 import 'dart:math';
+import '../models/device_status.dart';
 import '../models/electrochemical_test.dart';
 import '../models/water_sample.dart';
+import 'potentiostat_service.dart';
 
 /// Service that processes electrochemical data and assesses water safety
 class WaterAnalyzerService {
@@ -121,27 +123,27 @@ class WaterAnalyzerService {
     double? latitude,
     double? longitude,
     String? fieldNotes,
-    double simulatedOverrideConc = 0.038,
     String operatorName = 'Relawan Posko',
     String? operatorId,
     String? operatorEmail,
   }) {
     final peaks = detectPeaks(points: points, params: params);
-    
-    // Contaminant reading
-    final double measuredConc = peaks.isNotEmpty 
-        ? peaks.first.estimatedConcentrationMgL 
-        : simulatedOverrideConc;
-    
-    final double peakPot = peaks.isNotEmpty ? peaks.first.potentialV : params.analyte.typicalRedoxPeakV;
-    final double peakCur = peaks.isNotEmpty ? peaks.first.peakCurrentMicroA : (measuredConc * 110.0);
+
+    // Contaminant reading: never fabricate concentration if no peak is detected
+    final double measuredConc =
+        peaks.isNotEmpty ? peaks.first.estimatedConcentrationMgL : 0.0;
+
+    final double peakPot =
+        peaks.isNotEmpty ? peaks.first.potentialV : params.analyte.typicalRedoxPeakV;
+    final double peakCur =
+        peaks.isNotEmpty ? peaks.first.peakCurrentMicroA : 0.0;
 
     final reading = ContaminantReading(
       analyte: params.analyte,
       measuredValue: measuredConc,
       unit: params.analyte.unit,
       thresholdLimit: params.analyte.whoThreshold,
-      isExceeded: measuredConc > params.analyte.whoThreshold,
+      isExceeded: peaks.isNotEmpty && measuredConc > params.analyte.whoThreshold,
       peakPotentialV: peakPot,
       peakCurrentMicroA: peakCur,
     );
@@ -149,6 +151,18 @@ class WaterAnalyzerService {
     final readings = [reading];
     final wqi = calculateWQI(readings);
     final status = evaluateSafety(readings, wqi);
+
+    String? effectiveNotes = fieldNotes;
+    if (peaks.isEmpty) {
+      const noPeakNote = 'Tidak ada puncak terdeteksi';
+      effectiveNotes =
+          (effectiveNotes != null && effectiveNotes.trim().isNotEmpty)
+              ? '$effectiveNotes\n$noPeakNote'
+              : noPeakNote;
+    }
+
+    final bool isSimulated = PotentiostatService().deviceStatus.connectionState ==
+        HardwareConnectionState.simulator;
 
     final now = DateTime.now();
     final sampleId = 'PS-${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-${now.hour}${now.minute}${now.second}';
@@ -169,10 +183,11 @@ class WaterAnalyzerService {
       readings: readings,
       rawScanData: points,
       scanParameters: params,
-      fieldNotes: fieldNotes,
+      fieldNotes: effectiveNotes,
       operatorName: operatorName,
       operatorId: operatorId,
       operatorEmail: operatorEmail,
+      isSimulated: isSimulated,
     );
   }
 }

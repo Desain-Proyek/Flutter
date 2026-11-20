@@ -106,6 +106,7 @@ class WaterSample {
   final String? operatorId;
   final String? operatorEmail;
   final bool isPendingSync;
+  final bool isSimulated;
 
   const WaterSample({
     required this.id,
@@ -124,6 +125,7 @@ class WaterSample {
     this.operatorId,
     this.operatorEmail,
     this.isPendingSync = false,
+    this.isSimulated = false,
   });
 
   /// Create a copy of WaterSample with updated fields.
@@ -144,6 +146,7 @@ class WaterSample {
     String? operatorId,
     String? operatorEmail,
     bool? isPendingSync,
+    bool? isSimulated,
   }) {
     return WaterSample(
       id: id ?? this.id,
@@ -162,6 +165,7 @@ class WaterSample {
       operatorId: operatorId ?? this.operatorId,
       operatorEmail: operatorEmail ?? this.operatorEmail,
       isPendingSync: isPendingSync ?? this.isPendingSync,
+      isSimulated: isSimulated ?? this.isSimulated,
     );
   }
 
@@ -181,6 +185,7 @@ class WaterSample {
       'operatorId': operatorId,
       'userId': operatorId, // required by Firestore rules (userId == auth.uid)
       'operatorEmail': operatorEmail,
+      'isSimulated': isSimulated,
     };
   }
 
@@ -278,43 +283,10 @@ class WaterSample {
       operatorId: (map['userId'] ?? map['operatorId']) as String?,
       operatorEmail: map['operatorEmail'] as String?,
       isPendingSync: isPendingSync,
+      isSimulated: (map['isSimulated'] as bool?) ?? false,
     );
   }
 
   /// Check whether this sample belongs to the given user UID.
   bool isOwnedBy(String? uid) => uid != null && operatorId == uid;
-
-  /// Factory for sample test generation
-  factory WaterSample.sampleMock({
-    required String id,
-    required String location,
-    required WaterSourceType source,
-    required WaterSafetyStatus status,
-    required double wqi,
-    required TargetAnalyte analyte,
-    required double conc,
-  }) {
-    return WaterSample(
-      id: id,
-      locationName: location,
-      sourceType: source,
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      safetyStatus: status,
-      waterQualityIndex: wqi,
-      readings: [
-        ContaminantReading(
-          analyte: analyte,
-          measuredValue: conc,
-          unit: analyte.unit,
-          thresholdLimit: analyte.whoThreshold,
-          isExceeded: conc > analyte.whoThreshold,
-          peakPotentialV: analyte.typicalRedoxPeakV,
-          peakCurrentMicroA: conc * 85.0,
-        ),
-      ],
-      rawScanData: [],
-      scanParameters: ScanParameters.presetFor(analyte),
-      fieldNotes: 'Pengambilan sampel di titik pengungsian darurat.',
-    );
-  }
 }

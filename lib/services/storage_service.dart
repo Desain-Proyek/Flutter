@@ -21,7 +21,6 @@ class StorageService {
   factory StorageService() => _instance;
 
   StorageService._internal() {
-    _initDefaultMockData();
     _startConnectivityMonitoring();
   }
 
@@ -191,138 +190,6 @@ class StorageService {
       _isSyncingPending = false;
       _updateOfflineState();
     }
-  }
-
-  // ============================================================
-  // MOCK DATA
-  // ============================================================
-
-  /// Initialize default mock data for development.
-  ///
-  /// These samples are only stored locally.
-  /// They are not automatically uploaded to Firestore.
-  void _initDefaultMockData() {
-    _samples.addAll([
-      WaterSample(
-        id: 'PS-20260830-01',
-        locationName: 'Posko Pengungsian 03 - Desa Sukamaju',
-        latitude: -6.9175,
-        longitude: 107.6191,
-        sourceType: WaterSourceType.well,
-        timestamp: DateTime.now().subtract(
-          const Duration(hours: 3, minutes: 15),
-        ),
-        safetyStatus: WaterSafetyStatus.danger,
-        waterQualityIndex: 42.0,
-        readings: [
-          const ContaminantReading(
-            analyte: TargetAnalyte.lead,
-            measuredValue: 0.048,
-            unit: 'mg/L',
-            thresholdLimit: 0.010,
-            isExceeded: true,
-            peakPotentialV: -0.44,
-            peakCurrentMicroA: 5.28,
-          ),
-        ],
-        rawScanData: [],
-        scanParameters: ScanParameters.presetFor(
-          TargetAnalyte.lead,
-        ),
-        fieldNotes:
-            'Air sumur keruh setelah banjir bandang, bau lumpur tercium.',
-      ),
-
-      WaterSample(
-        id: 'PS-20260830-02',
-        locationName: 'Truk Tangki Air Bersih PMI #07',
-        latitude: -6.9200,
-        longitude: 107.6250,
-        sourceType: WaterSourceType.reliefTank,
-        timestamp: DateTime.now().subtract(
-          const Duration(hours: 6),
-        ),
-        safetyStatus: WaterSafetyStatus.safe,
-        waterQualityIndex: 94.0,
-        readings: [
-          const ContaminantReading(
-            analyte: TargetAnalyte.arsenic,
-            measuredValue: 0.002,
-            unit: 'mg/L',
-            thresholdLimit: 0.010,
-            isExceeded: false,
-            peakPotentialV: 0.15,
-            peakCurrentMicroA: 0.22,
-          ),
-        ],
-        rawScanData: [],
-        scanParameters: ScanParameters.presetFor(
-          TargetAnalyte.arsenic,
-        ),
-        fieldNotes:
-            'Pasokan bantuan resmi PMI, kondisi jernih dan netral.',
-      ),
-
-      WaterSample(
-        id: 'PS-20260829-03',
-        locationName: 'Mata Air Bukit Cisarua',
-        latitude: -6.8500,
-        longitude: 107.6500,
-        sourceType: WaterSourceType.spring,
-        timestamp: DateTime.now().subtract(
-          const Duration(days: 1, hours: 2),
-        ),
-        safetyStatus: WaterSafetyStatus.safe,
-        waterQualityIndex: 88.0,
-        readings: [
-          const ContaminantReading(
-            analyte: TargetAnalyte.lead,
-            measuredValue: 0.004,
-            unit: 'mg/L',
-            thresholdLimit: 0.010,
-            isExceeded: false,
-            peakPotentialV: -0.45,
-            peakCurrentMicroA: 0.44,
-          ),
-        ],
-        rawScanData: [],
-        scanParameters: ScanParameters.presetFor(
-          TargetAnalyte.lead,
-        ),
-        fieldNotes:
-            'Sumber air gravitasi warga lereng, layak konsumsi.',
-      ),
-
-      WaterSample(
-        id: 'PS-20260829-04',
-        locationName: 'Genangan Aliran Sungai Citarik',
-        latitude: -6.9500,
-        longitude: 107.7000,
-        sourceType: WaterSourceType.river,
-        timestamp: DateTime.now().subtract(
-          const Duration(days: 1, hours: 8),
-        ),
-        safetyStatus: WaterSafetyStatus.danger,
-        waterQualityIndex: 35.0,
-        readings: [
-          const ContaminantReading(
-            analyte: TargetAnalyte.mercury,
-            measuredValue: 0.008,
-            unit: 'mg/L',
-            thresholdLimit: 0.001,
-            isExceeded: true,
-            peakPotentialV: 0.49,
-            peakCurrentMicroA: 6.8,
-          ),
-        ],
-        rawScanData: [],
-        scanParameters: ScanParameters.presetFor(
-          TargetAnalyte.mercury,
-        ),
-        fieldNotes:
-            'Dicurigai tercemar limbah penambangan/industri hulu.',
-      ),
-    ]);
   }
 
   // ============================================================
@@ -551,7 +418,6 @@ class StorageService {
   /// Delete all water samples owned by the currently signed-in user from Firestore.
   ///
   /// Returns the number of deleted documents.
-  /// Local mock data without a matching [operatorId] is preserved.
   Future<int> deleteAllMySamples() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -717,10 +583,11 @@ class StorageService {
     buffer.writeln(
       'Sample_ID,Location,Source_Type,Timestamp,'
       'WQI_Score,Status,Analyte,Measured_mgL,'
-      'Threshold_mgL,Exceeded',
+      'Threshold_mgL,Exceeded,Data_Simulasi',
     );
 
     for (final sample in targetSamples) {
+      final simLabel = sample.isSimulated ? 'Data simulasi' : 'Real';
       if (sample.readings.isEmpty) {
         buffer.writeln(
           '${sample.id},'
@@ -732,7 +599,8 @@ class StorageService {
           '${sample.scanParameters.analyte.name},'
           '0.0000,'
           '0.0000,'
-          'false',
+          'false,'
+          '$simLabel',
         );
       } else {
         for (final reading in sample.readings) {
@@ -746,7 +614,8 @@ class StorageService {
             '${reading.analyte.name},'
             '${reading.measuredValue.toStringAsFixed(4)},'
             '${reading.thresholdLimit.toStringAsFixed(4)},'
-            '${reading.isExceeded}',
+            '${reading.isExceeded},'
+            '$simLabel',
           );
         }
       }

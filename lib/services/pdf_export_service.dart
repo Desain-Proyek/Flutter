@@ -135,6 +135,27 @@ class PdfExportService {
                           fontSize: 8,
                         ),
                       ),
+                      if (sample.isSimulated) ...[
+                        pw.SizedBox(height: 3),
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: pw.BoxDecoration(
+                            color: PdfColor.fromHex('#E0F2FE'),
+                            border: pw.Border.all(color: primaryColor, width: 0.7),
+                            borderRadius: const pw.BorderRadius.all(
+                                pw.Radius.circular(4)),
+                          ),
+                          child: pw.Text(
+                            'Data simulasi',
+                            style: pw.TextStyle(
+                              color: primaryColor,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 7.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
