@@ -42,11 +42,6 @@ class AnalysisReportScreen extends StatelessWidget {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.qr_code_2_rounded),
-            tooltip: 'Bagikan via QR Code Offline',
-            onPressed: () => _showQRCodeModal(context),
-          ),
-          IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Bagikan Laporan',
             onPressed: () => _showShareOptions(context),
@@ -341,87 +336,25 @@ class AnalysisReportScreen extends StatelessWidget {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => _showQRCodeModal(context),
-            icon: const Icon(Icons.qr_code_scanner_rounded),
-            label: const Text('QR Sinkron'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PdfPreviewScreen(sample: sample),
             ),
-          ),
+          );
+        },
+        icon: const Icon(Icons.picture_as_pdf_rounded),
+        label: const Text('Ekspor Laporan Resmi (PDF)'),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF0284C7),
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 2,
-          child: FilledButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PdfPreviewScreen(sample: sample),
-                ),
-              );
-            },
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            label: const Text('Ekspor Laporan Resmi (PDF)'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0284C7),
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showQRCodeModal(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('QR Code Sinkronisasi Lapangan'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 200,
-                height: 200,
-                color: Colors.white,
-                padding: const EdgeInsets.all(12),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.qr_code_2_rounded, size: 140, color: Colors.black),
-                      Text(
-                        sample.id,
-                        style: const TextStyle(color: Colors.black, fontSize: 10, fontFamily: 'monospace'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Scan QR ini dengan smartphone tim relawan lain untuk mentransfer data sampel secara instan tanpa sinyal internet.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Tutup'),
-            ),
-          ],
-        );
-      },
+      ),
     );
   }
 

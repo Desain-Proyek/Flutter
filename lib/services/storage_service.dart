@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -706,35 +705,5 @@ class StorageService {
     } catch (e) {
       debugPrint('Gagal membuka lokasi file: $e');
     }
-  }
-
-  // ============================================================
-  // QR EXPORT
-  // ============================================================
-
-  /// Generate concise JSON QR payload for
-  /// instant device-to-device field sync.
-  String exportSampleToQRPayload(
-    WaterSample sample,
-  ) {
-    final map = {
-      'id': sample.id,
-      'loc': sample.locationName,
-      'src': sample.sourceType.name,
-      'ts': sample.timestamp.millisecondsSinceEpoch,
-      'wqi': sample.waterQualityIndex.round(),
-      'status': sample.safetyStatus.name,
-      'analyte': sample.readings.isNotEmpty
-          ? sample.readings.first.analyte.symbol
-          : 'N/A',
-      'conc': sample.readings.isNotEmpty
-          ? sample.readings.first.measuredValue
-          : 0.0,
-      'exceeded': sample.readings.isNotEmpty
-          ? sample.readings.first.isExceeded
-          : false,
-    };
-
-    return jsonEncode(map);
   }
 }
