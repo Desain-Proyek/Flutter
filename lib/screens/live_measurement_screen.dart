@@ -13,6 +13,7 @@ import '../services/location_service.dart';
 import '../widgets/live_voltammogram_chart.dart';
 import '../widgets/connection_badge.dart';
 import '../widgets/field_parameter_card.dart';
+import '../widgets/offline_indicator_badge.dart';
 import 'analysis_report_screen.dart';
 
 class LiveMeasurementScreen extends StatefulWidget {
@@ -199,7 +200,6 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
       points: List.of(_livePoints),
       latitude: _lat,
       longitude: _lng,
-      simulatedOverrideConc: _simulatedContaminantLevel,
       operatorName: _authService.operatorDisplayName,
       operatorId: _authService.operatorId,
       operatorEmail: _authService.operatorEmail,
@@ -207,11 +207,16 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
 
     await _storageService.saveSample(sample);
 
+    final isPending = _storageService.isFromCache;
+    final message = isPending
+        ? 'Pengujian selesai. Tersimpan di perangkat.'
+        : 'Pengujian ${_parameters.analyte.title} Selesai!';
+
     // Show completion snackbar with action
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Pengujian ${_parameters.analyte.title} Selesai!'),
+        content: Text(message),
         action: SnackBarAction(
           label: 'Buka Laporan',
           onPressed: () {
@@ -248,6 +253,8 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
           ],
         ),
         actions: [
+          const OfflineIndicatorBadge(compact: true),
+          const SizedBox(width: 8),
           StreamBuilder<DeviceStatus>(
             stream: _potentiostatService.deviceStatusStream,
             initialData: _potentiostatService.deviceStatus,
@@ -265,6 +272,7 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const OfflineStatusBar(),
             // Sample Info bar (Location & Source)
             _buildSampleMetadataCard(isDark, isScanning),
             const SizedBox(height: 12),

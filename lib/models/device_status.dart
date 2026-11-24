@@ -17,21 +17,21 @@ class DeviceStatus {
   final HardwareConnectionState connectionState;
   final String deviceName;
   final String firmwareVersion;
-  final int batteryPercent;
-  final double boardTemperatureC;
-  final double electrodeWearPercent; // 0 (fresh) to 100 (needs replacement)
+  final int? batteryPercent;
+  final double? boardTemperatureC;
+  final double? electrodeWearPercent; // 0 (fresh) to 100 (needs replacement)
   final bool isDummyCellCalibrated;
   final String serialPortOrMac;
 
   const DeviceStatus({
     this.connectionState = HardwareConnectionState.simulator,
-    this.deviceName = 'PortaStat-DIY-ESP32',
-    this.firmwareVersion = 'v1.4-LMP91000',
-    this.batteryPercent = 88,
-    this.boardTemperatureC = 29.4,
-    this.electrodeWearPercent = 14.0,
-    this.isDummyCellCalibrated = true,
-    this.serialPortOrMac = 'COM4 / BLE:D4:36:12',
+    this.deviceName = '-',
+    this.firmwareVersion = '-',
+    this.batteryPercent,
+    this.boardTemperatureC,
+    this.electrodeWearPercent,
+    this.isDummyCellCalibrated = false,
+    this.serialPortOrMac = '-',
   });
 
   DeviceStatus copyWith({

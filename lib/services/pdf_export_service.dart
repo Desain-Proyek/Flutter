@@ -4,7 +4,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/water_sample.dart';
 import '../models/mitigation_guide.dart';
-import 'storage_service.dart';
 
 /// Service for generating, sharing, and printing official PDF test reports.
 class PdfExportService {
@@ -30,9 +29,6 @@ class PdfExportService {
         ? MitigationGuidance.forAnalyte(
             primaryReading.analyte, primaryReading.isExceeded)
         : MitigationGuidance.forAnalyte(sample.scanParameters.analyte, false);
-
-    // QR Code data payload
-    final qrPayload = StorageService().exportSampleToQRPayload(sample);
 
     // Brand & Status Colors
     final primaryColor = PdfColor.fromHex('#0284C7');
@@ -135,6 +131,27 @@ class PdfExportService {
                           fontSize: 8,
                         ),
                       ),
+                      if (sample.isSimulated) ...[
+                        pw.SizedBox(height: 3),
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: pw.BoxDecoration(
+                            color: PdfColor.fromHex('#E0F2FE'),
+                            border: pw.Border.all(color: primaryColor, width: 0.7),
+                            borderRadius: const pw.BorderRadius.all(
+                                pw.Radius.circular(4)),
+                          ),
+                          child: pw.Text(
+                            'Data simulasi',
+                            style: pw.TextStyle(
+                              color: primaryColor,
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 7.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -509,53 +526,9 @@ class PdfExportService {
             pw.Divider(color: borderColor, thickness: 0.8),
             pw.SizedBox(height: 6),
             pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: pw.MainAxisAlignment.end,
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                // QR Code Verification
-                pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    pw.Container(
-                      width: 52,
-                      height: 52,
-                      padding: const pw.EdgeInsets.all(3),
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border.all(color: borderColor),
-                        borderRadius:
-                            const pw.BorderRadius.all(pw.Radius.circular(4)),
-                        color: PdfColors.white,
-                      ),
-                      child: pw.BarcodeWidget(
-                        barcode: pw.Barcode.qrCode(),
-                        data: qrPayload,
-                      ),
-                    ),
-                    pw.SizedBox(width: 8),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          'Validasi Digital Lapangan',
-                          style: pw.TextStyle(
-                            fontWeight: pw.FontWeight.bold,
-                            fontSize: 7.5,
-                            color: darkHeader,
-                          ),
-                        ),
-                        pw.SizedBox(height: 2),
-                        pw.Text(
-                          'Pindai QR ini untuk verifikasi keaslian\ndata pembacaan sensor PortaStat.',
-                          style: const pw.TextStyle(
-                            fontSize: 6.5,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
                 // Signature / Operator Column
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,

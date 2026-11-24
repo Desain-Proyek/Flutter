@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../services/potentiostat_service.dart';
 
 class HardwareDIYGuideScreen extends StatelessWidget {
   const HardwareDIYGuideScreen({super.key});
@@ -202,17 +201,25 @@ class HardwareDIYGuideScreen extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.3),
             ),
             const SizedBox(height: 12),
-            FilledButton.tonalIcon(
-              onPressed: () {
-                PotentiostatService().calibrateDummyCell();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('✓ Dummy Cell Terverifikasi! Noise: 0.12 μA, Slope: 0.10 mA/V.')),
-                );
-              },
-              icon: const Icon(Icons.check_circle_outline_rounded),
-              label: const Text('Jalankan Uji Mandiri Dummy Cell'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(42),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.25)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF0284C7)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Uji mandiri otomatis tersedia setelah perangkat terhubung.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF0284C7)),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
