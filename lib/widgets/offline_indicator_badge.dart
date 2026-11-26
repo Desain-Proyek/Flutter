@@ -228,24 +228,6 @@ class OfflineIndicatorBadge extends StatelessWidget {
                     ),
                   ),
 
-                  const Divider(height: 20),
-
-                  // Force Offline Toggle for Field Simulation
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.signal_cellular_connected_no_internet_4_bar_rounded),
-                    title: const Text('Simulasi Mode Offline Lapangan', style: TextStyle(fontSize: 13.5)),
-                    subtitle: const Text(
-                      'Paksa aplikasi beroperasi tanpa internet untuk uji coba tanggap bencana.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                    value: storageService.isForceOffline,
-                    onChanged: (val) {
-                      storageService.setForceOffline(val);
-                      setModalState(() {});
-                    },
-                  ),
-
                   const SizedBox(height: 12),
 
                   // Sync / Refresh button

@@ -10,6 +10,8 @@ import '../services/water_analyzer_service.dart';
 import '../services/storage_service.dart';
 import '../services/auth_service.dart';
 import '../services/location_service.dart';
+import '../services/map_cache_service.dart';
+import '../widgets/high_contrast_scope.dart';
 import '../widgets/live_voltammogram_chart.dart';
 import '../widgets/connection_badge.dart';
 import '../widgets/field_parameter_card.dart';
@@ -433,6 +435,7 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
                       TileLayer(
                         urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.example.despro',
+                        tileProvider: MapCacheService().tileProvider,
                       ),
                       if (_lat != null && _lng != null)
                         MarkerLayer(
@@ -556,6 +559,7 @@ class _LiveMeasurementScreenState extends State<LiveMeasurementScreen> {
                 technique: _parameters.technique,
                 showBaseline: _showBaseline,
                 isScanning: isScanning,
+                isHighContrast: HighContrastScope.of(context),
               ),
             ),
             const SizedBox(height: 6),

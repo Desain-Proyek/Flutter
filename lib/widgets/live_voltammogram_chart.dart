@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/electrochemical_test.dart';
+import 'high_contrast_scope.dart';
 
 /// Real-time high performance voltammogram painter
 class LiveVoltammogramChart extends StatefulWidget {
@@ -10,6 +11,7 @@ class LiveVoltammogramChart extends StatefulWidget {
   final bool showBaseline;
   final bool isScanning;
   final double? activePotentialV;
+  final bool isHighContrast;
 
   const LiveVoltammogramChart({
     super.key,
@@ -19,6 +21,7 @@ class LiveVoltammogramChart extends StatefulWidget {
     this.showBaseline = true,
     this.isScanning = false,
     this.activePotentialV,
+    this.isHighContrast = false,
   });
 
   @override
@@ -51,6 +54,7 @@ class _LiveVoltammogramChartState extends State<LiveVoltammogramChart> {
               selectedPoint: _selectedPoint,
               touchPosition: _touchPosition,
               theme: Theme.of(context),
+              isHighContrast: widget.isHighContrast || HighContrastScope.of(context),
             ),
           ),
         );
@@ -104,6 +108,7 @@ class _VoltammogramPainter extends CustomPainter {
   final VoltammogramPoint? selectedPoint;
   final Offset? touchPosition;
   final ThemeData theme;
+  final bool isHighContrast;
 
   _VoltammogramPainter({
     required this.points,
@@ -114,6 +119,7 @@ class _VoltammogramPainter extends CustomPainter {
     this.selectedPoint,
     this.touchPosition,
     required this.theme,
+    this.isHighContrast = false,
   });
 
   @override
@@ -132,7 +138,9 @@ class _VoltammogramPainter extends CustomPainter {
 
     final isDark = theme.brightness == Brightness.dark;
     final bgPaint = Paint()
-      ..color = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+      ..color = isHighContrast
+          ? (isDark ? Colors.black : Colors.white)
+          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC));
     canvas.drawRRect(
       RRect.fromRectAndRadius(chartRect, const Radius.circular(8)),
       bgPaint,
@@ -191,8 +199,10 @@ class _VoltammogramPainter extends CustomPainter {
     // Draw baseline if requested
     if (showBaseline && detectedPeaks.isNotEmpty) {
       final baselinePaint = Paint()
-        ..color = Colors.amber.withValues(alpha: 0.6)
-        ..strokeWidth = 1.5
+        ..color = isHighContrast
+            ? (isDark ? Colors.amberAccent : const Color(0xFFB45309))
+            : Colors.amber.withValues(alpha: 0.6)
+        ..strokeWidth = isHighContrast ? 2.5 : 1.5
         ..style = PaintingStyle.stroke;
 
       final baselinePath = Path();
@@ -210,9 +220,12 @@ class _VoltammogramPainter extends CustomPainter {
     }
 
     // Draw main Voltammogram curve
+    final curveColor = isHighContrast
+        ? (isDark ? const Color(0xFF38BDF8) : const Color(0xFF005A9C))
+        : const Color(0xFF0284C7);
     final curvePaint = Paint()
-      ..color = const Color(0xFF0284C7)
-      ..strokeWidth = 2.5
+      ..color = curveColor
+      ..strokeWidth = isHighContrast ? 4.0 : 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
@@ -256,7 +269,7 @@ class _VoltammogramPainter extends CustomPainter {
       final ringPaint = Paint()
         ..color = const Color(0xFFE11D48)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5;
+        ..strokeWidth = isHighContrast ? 3.5 : 2.5;
       canvas.drawCircle(peakPos, 6.0, ringPaint);
 
       final centerDot = Paint()..color = Colors.white;
@@ -308,19 +321,26 @@ class _VoltammogramPainter extends CustomPainter {
     bool isDark,
   ) {
     final gridPaint = Paint()
-      ..color = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)
-      ..strokeWidth = 1.0;
+      ..color = isHighContrast
+          ? (isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.22))
+          : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06))
+      ..strokeWidth = isHighContrast ? 1.4 : 1.0;
 
     final borderPaint = Paint()
-      ..color = isDark ? Colors.white24 : Colors.black26
-      ..strokeWidth = 1.2
+      ..color = isHighContrast
+          ? (isDark ? Colors.white : Colors.black)
+          : (isDark ? Colors.white24 : Colors.black26)
+      ..strokeWidth = isHighContrast ? 2.0 : 1.2
       ..style = PaintingStyle.stroke;
 
     canvas.drawRect(rect, borderPaint);
 
     final textStyle = TextStyle(
-      color: isDark ? Colors.white70 : const Color(0xFF475569),
-      fontSize: 10,
+      color: isHighContrast
+          ? (isDark ? Colors.white : Colors.black)
+          : (isDark ? Colors.white70 : const Color(0xFF475569)),
+      fontSize: isHighContrast ? 11 : 10,
+      fontWeight: isHighContrast ? FontWeight.bold : FontWeight.normal,
       fontFamily: 'monospace',
     );
 
@@ -351,12 +371,15 @@ class _VoltammogramPainter extends CustomPainter {
     }
 
     // Axis Labels
+    final axisLabelColor = isHighContrast
+        ? (isDark ? Colors.white : Colors.black)
+        : (isDark ? Colors.white60 : const Color(0xFF64748B));
     final xLabel = TextSpan(
       text: 'Potensial E (V vs RE)',
       style: TextStyle(
-        color: isDark ? Colors.white60 : const Color(0xFF64748B),
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
+        color: axisLabelColor,
+        fontSize: isHighContrast ? 12 : 11,
+        fontWeight: isHighContrast ? FontWeight.bold : FontWeight.w600,
       ),
     );
     final xPainter = TextPainter(text: xLabel, textDirection: TextDirection.ltr)..layout();
@@ -366,9 +389,9 @@ class _VoltammogramPainter extends CustomPainter {
     final yLabel = TextSpan(
       text: 'Arus I (μA)',
       style: TextStyle(
-        color: isDark ? Colors.white60 : const Color(0xFF64748B),
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
+        color: axisLabelColor,
+        fontSize: isHighContrast ? 12 : 11,
+        fontWeight: isHighContrast ? FontWeight.bold : FontWeight.w600,
       ),
     );
     final yPainter = TextPainter(text: yLabel, textDirection: TextDirection.ltr)..layout();

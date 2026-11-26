@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/device_status.dart';
 import '../services/potentiostat_service.dart';
 import '../services/auth_service.dart';
+import '../services/map_cache_service.dart';
 import '../services/storage_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -242,37 +244,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             child: Column(
               children: [
-                ValueListenableBuilder<bool>(
-                  valueListenable: StorageService().isOfflineNotifier,
-                  builder: (context, isOffline, _) {
-                    final pending = StorageService().pendingCount;
-                    return SwitchListTile(
-                      secondary: Icon(
-                        isOffline ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
-                        color: isOffline ? const Color(0xFFD97706) : const Color(0xFF10B981),
-                      ),
-                      title: const Text('Simulasi Mode Offline Lapangan'),
-                      subtitle: Text(
-                        isOffline
-                            ? 'Aktif: Bekerja tanpa internet (${pending > 0 ? "$pending sampel pending" : "penyimpanan lokal"}).'
-                            : 'Nonaktif: Terhubung langsung ke Firestore Cloud.',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      value: StorageService().isForceOffline,
-                      onChanged: (val) {
-                        setState(() {
-                          StorageService().setForceOffline(val);
-                        });
-                      },
-                    );
-                  },
-                ),
-                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
                   title: const Text('Reset Riwayat Pengujian'),
                   subtitle: const Text('Hapus seluruh riwayat pengujian milik akun ini.'),
                   onTap: () => _confirmResetDialog(context),
+                ),
+                const Divider(height: 1),
+                FutureBuilder<MapCacheStats>(
+                  future: MapCacheService().getCacheStats(),
+                  builder: (context, snapshot) {
+                    final stats = snapshot.data;
+                    final subtitleText = kIsWeb
+                        ? 'Tidak tersedia di browser Web'
+                        : (stats == null
+                            ? 'Menghitung ukuran cache...'
+                            : '${stats.tileCount} tile tersimpan (${stats.formattedSize})');
+                    return ListTile(
+                      leading: const Icon(Icons.map_outlined, color: Color(0xFF0284C7)),
+                      title: const Text('Cache Peta Offline'),
+                      subtitle: Text(subtitleText, style: const TextStyle(fontSize: 12)),
+                      trailing: TextButton(
+                        onPressed: kIsWeb
+                            ? null
+                            : () async {
+                                await MapCacheService().clearCache();
+                                if (!context.mounted) return;
+                                setState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cache peta offline berhasil dihapus.'),
+                                  ),
+                                );
+                              },
+                        child: const Text('Hapus Cache Peta'),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

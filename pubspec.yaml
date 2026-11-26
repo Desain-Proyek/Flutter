@@ -42,6 +42,12 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.2
   geolocator: ^14.1.1
+  shared_preferences: ^2.5.5
+  path_provider: ^2.1.6
+  flutter_map_cache: ^1.5.2
+  dio: ^5.11.1
+  dio_cache_interceptor: ^3.5.1
+  dio_cache_interceptor_file_store: ^1.2.3
 
 dev_dependencies:
   flutter_test:

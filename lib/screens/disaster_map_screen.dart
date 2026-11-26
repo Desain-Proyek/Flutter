@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/water_sample.dart';
+import '../services/map_cache_service.dart';
 import '../services/storage_service.dart';
 import 'analysis_report_screen.dart';
 import '../widgets/offline_indicator_badge.dart';
@@ -58,6 +59,88 @@ class _DisasterMapScreenState extends State<DisasterMapScreen> {
     // Center on the most recent valid sample
     final target = LatLng(valid.first.latitude!, valid.first.longitude!);
     _mapController.move(target, 12.5);
+  }
+
+  Future<void> _downloadVisibleAreaOffline() async {
+    final bounds = _mapController.camera.visibleBounds;
+    bool isCancelled = false;
+    int completed = 0;
+    int total = 0;
+    bool started = false;
+    StateSetter? dialogSetState;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            dialogSetState = setDialogState;
+            if (!started) {
+              started = true;
+              MapCacheService()
+                  .downloadRegionTiles(
+                bounds: bounds,
+                minZoom: 11,
+                maxZoom: 16,
+                isCancelled: () => isCancelled,
+                onProgress: (done, tot) {
+                  completed = done;
+                  total = tot;
+                  if (ctx.mounted) {
+                    dialogSetState?.call(() {});
+                  }
+                },
+              )
+                  .then((result) {
+                if (dialogCtx.mounted) {
+                  Navigator.pop(dialogCtx);
+                }
+                if (!mounted) return;
+                final msg = result.cancelled
+                    ? 'Unduhan peta dibatalkan ($completed/${result.total} tile tersimpan).'
+                    : 'Peta offline siap: ${result.downloaded} tile disimpan untuk wilayah ini.';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(msg)),
+                );
+              });
+            }
+
+            final progress = total > 0 ? completed / total : null;
+            return AlertDialog(
+              title: const Text('Mengunduh Peta Offline'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Menyimpan tile peta wilayah terlihat (zoom 11–16) agar dapat digunakan tanpa internet.',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 14),
+                  LinearProgressIndicator(value: progress),
+                  const SizedBox(height: 8),
+                  Text(
+                    total > 0
+                        ? '$completed / $total tile'
+                        : 'Menyiapkan daftar tile...',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    isCancelled = true;
+                  },
+                  child: const Text('Batal'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showSampleDetailsSheet(BuildContext context, WaterSample sample, bool isDark) {
@@ -418,6 +501,7 @@ class _DisasterMapScreenState extends State<DisasterMapScreen> {
                   TileLayer(
                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.despro',
+                    tileProvider: MapCacheService().tileProvider,
                   ),
                   MarkerLayer(markers: markers),
                 ],
@@ -520,6 +604,23 @@ class _DisasterMapScreenState extends State<DisasterMapScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+
+              // BOTTOM LEFT CONTROL: Download Offline Map Area
+              Positioned(
+                bottom: 24,
+                left: 16,
+                child: FloatingActionButton.extended(
+                  heroTag: 'map_download_offline',
+                  backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  foregroundColor: const Color(0xFF0284C7),
+                  onPressed: _downloadVisibleAreaOffline,
+                  icon: const Icon(Icons.download_for_offline_rounded, size: 20),
+                  label: const Text(
+                    'Unduh Peta Offline',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),

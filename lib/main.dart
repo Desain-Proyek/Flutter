@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_dashboard_screen.dart';
 import 'screens/live_measurement_screen.dart';
 import 'screens/field_log_screen.dart';
@@ -7,6 +8,8 @@ import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/disaster_map_screen.dart';
 import 'services/auth_service.dart';
+import 'services/map_cache_service.dart';
+import 'widgets/high_contrast_scope.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,18 +42,41 @@ Future<void> main() async {
     }
   }
 
-  runApp(const PortaStatApp());
+  await MapCacheService().init();
+  final prefs = await SharedPreferences.getInstance();
+  final initialHighContrast = prefs.getBool('is_high_contrast') ?? false;
+
+  runApp(PortaStatApp(initialHighContrast: initialHighContrast));
 }
 
 class PortaStatApp extends StatefulWidget {
-  const PortaStatApp({super.key});
+  final bool initialHighContrast;
+
+  const PortaStatApp({super.key, this.initialHighContrast = false});
 
   @override
   State<PortaStatApp> createState() => _PortaStatAppState();
 }
 
 class _PortaStatAppState extends State<PortaStatApp> {
-  bool _isHighContrast = false;
+  static const String _highContrastPrefKey = 'is_high_contrast';
+  late bool _isHighContrast;
+
+  @override
+  void initState() {
+    super.initState();
+    _isHighContrast = widget.initialHighContrast;
+  }
+
+  Future<void> _setHighContrast(bool val) async {
+    setState(() => _isHighContrast = val);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_highContrastPrefKey, val);
+    } catch (e) {
+      debugPrint('[Settings] Failed to persist high contrast preference: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,9 +86,12 @@ class _PortaStatAppState extends State<PortaStatApp> {
       theme: _buildTheme(Brightness.light, _isHighContrast),
       darkTheme: _buildTheme(Brightness.dark, _isHighContrast),
       themeMode: ThemeMode.system,
-      home: AuthGate(
+      home: HighContrastScope(
         isHighContrast: _isHighContrast,
-        onHighContrastChanged: (val) => setState(() => _isHighContrast = val),
+        child: AuthGate(
+          isHighContrast: _isHighContrast,
+          onHighContrastChanged: _setHighContrast,
+        ),
       ),
     );
   }
@@ -70,10 +99,12 @@ class _PortaStatAppState extends State<PortaStatApp> {
   ThemeData _buildTheme(Brightness brightness, bool highContrast) {
     final isDark = brightness == Brightness.dark;
 
-    final colorScheme = ColorScheme.fromSeed(
+    final baseScheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFF0284C7),
       brightness: brightness,
-      primary: const Color(0xFF0284C7),
+      primary: highContrast
+          ? (isDark ? const Color(0xFF38BDF8) : const Color(0xFF005A9C))
+          : const Color(0xFF0284C7),
       secondary: const Color(0xFF0D9488),
       tertiary: const Color(0xFFE11D48),
       surface: isDark
@@ -81,12 +112,21 @@ class _PortaStatAppState extends State<PortaStatApp> {
           : (highContrast ? Colors.white : const Color(0xFFF8FAFC)),
     );
 
-    return ThemeData(
+    final colorScheme = highContrast
+        ? baseScheme.copyWith(
+            onSurface: isDark ? Colors.white : Colors.black,
+            onSurfaceVariant: isDark ? Colors.white : Colors.black87,
+            outline: isDark ? Colors.white70 : Colors.black,
+          )
+        : baseScheme;
+
+    final baseTheme = ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
       appBarTheme: AppBarTheme(
         backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 1,
         centerTitle: false,
@@ -98,6 +138,21 @@ class _PortaStatAppState extends State<PortaStatApp> {
         elevation: 0,
       ),
       fontFamily: 'Roboto',
+    );
+
+    if (!highContrast) return baseTheme;
+
+    final fg = isDark ? Colors.white : Colors.black;
+    return baseTheme.copyWith(
+      textTheme: baseTheme.textTheme.copyWith(
+        bodyLarge: baseTheme.textTheme.bodyLarge?.copyWith(color: fg, fontWeight: FontWeight.w600),
+        bodyMedium: baseTheme.textTheme.bodyMedium?.copyWith(color: fg, fontWeight: FontWeight.w600),
+        bodySmall: baseTheme.textTheme.bodySmall?.copyWith(color: fg, fontWeight: FontWeight.w600),
+        labelLarge: baseTheme.textTheme.labelLarge?.copyWith(color: fg, fontWeight: FontWeight.w700),
+        labelMedium: baseTheme.textTheme.labelMedium?.copyWith(color: fg, fontWeight: FontWeight.w700),
+        titleMedium: baseTheme.textTheme.titleMedium?.copyWith(color: fg, fontWeight: FontWeight.w700),
+        titleSmall: baseTheme.textTheme.titleSmall?.copyWith(color: fg, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

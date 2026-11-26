@@ -44,23 +44,19 @@ class StorageService {
   int get pendingCount => _samples.where((s) => s.isPendingSync).length;
 
   bool _isFromCache = false;
-  bool _forceOffline = false;
   bool _isInternetConnected = true;
   Timer? _connectivityTimer;
 
   /// Whether the latest stream or query snapshot was served from the local cache.
   bool get isFromCache => _isFromCache;
 
-  /// Whether user manually forced offline simulation.
-  bool get isForceOffline => _forceOffline;
-
   /// Whether internet connection is currently reachable.
   bool get isInternetConnected => _isInternetConnected;
 
   /// True if the system is currently operating in offline mode
-  /// (forced offline, internet unreachable, cache-backed, or pending sync).
+  /// (internet unreachable, cache-backed, or pending sync).
   bool get isOffline =>
-      _forceOffline || !_isInternetConnected || _isFromCache || pendingCount > 0;
+      !_isInternetConnected || _isFromCache || pendingCount > 0;
 
   /// Reactive notifier for offline state changes across the app.
   final ValueNotifier<bool> isOfflineNotifier = ValueNotifier<bool>(false);
@@ -83,37 +79,11 @@ class StorageService {
     });
   }
 
-  /// Manually force or disable offline mode (e.g., for disaster drill simulations).
-  void setForceOffline(bool value) {
-    if (_forceOffline == value) return;
-    _forceOffline = value;
-    if (_forceOffline) {
-      _isInternetConnected = false;
-      _updateOfflineState();
-      try {
-        _firestore.disableNetwork();
-      } catch (_) {}
-    } else {
-      try {
-        _firestore.enableNetwork();
-      } catch (_) {}
-      checkInternetConnection();
-    }
-  }
-
   bool _isCheckingConnectivity = false;
   bool _isSyncingPending = false;
 
   /// Actively test internet reachability to high-availability DNS hosts.
   Future<bool> checkInternetConnection() async {
-    if (_forceOffline) {
-      if (_isInternetConnected) {
-        _isInternetConnected = false;
-        _updateOfflineState();
-      }
-      return false;
-    }
-
     if (_isCheckingConnectivity) return _isInternetConnected;
     _isCheckingConnectivity = true;
 
